@@ -24,6 +24,7 @@ Mosquitoes must calculate micro-scale aerodynamic drag, track shifting carbon di
 A 3D indie biological flight simulator that lets human players experience domestic survival from an insect's perspective, featuring multi-spectrum sensory shaders, realistic inertia, dynamic host swat AI, and a high-stakes feeding stabilization system.
 
 ## Technical Details
+
 # Technologies/Components Used
 
 Languages used: JavaScript (ES6+ Modules), GLSL (Fragment & Vertex Shaders), HTML5, CSS3
