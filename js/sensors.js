@@ -1,27 +1,27 @@
 /**
- * 4-Channel Sensory Physics & Mosquito Perception Mode Visualizer
- * Through the Eyes of a Mosquito
+ * 4-Channel Sensory Physics & Multispectral Perception Visualizer
+ * Through the Eyes of a Mosquito — Production Upgrade
  *
- * Implements:
- * 1. CO2 (cyan) — Long-range chemoreception breath plumes
- * 2. Heat/Infrared (red-orange) — Close-range TRPA1 thermoreception
- * 3. Odor (amber) — Antennal skin volatile clouds
- * 4. Movement (violet) — Johnston's organ acoustic/mechanoreception ripples
- *
- * Mosquito Perception Mode [T / Tab]:
- * - Visual world darkens to thermal wireframe
- * - Sensory signals glow brightly through walls (depthTest: false, renderOrder: 998/999)
- * - 3D Bézier guidance spline points directly to highest attraction target
+ * Performance Features:
+ * - 10–25 FPS update frequency (decoupled from 60 FPS render loop)
+ * - 4 distinct biological sensory channels (CO₂, Heat, Odor, Movement)
+ * - Target attraction scoring formula
+ * - Multispectral perception modes: NORMAL, LOW LIGHT, HEAT, CO2, ODOR, MOVEMENT, FULL PERCEPTION
+ * - 3D Quadratic Bézier guidance curve leading to target capillary
  */
 
 class SensorSystem {
     constructor(scene) {
         this.scene = scene;
+
+        this.MODES = ['NORMAL', 'LOW LIGHT', 'HEAT', 'CO2', 'ODOR', 'MOVEMENT', 'FULL PERCEPTION'];
+        this.currentModeIndex = 0;
+        this.currentMode = 'NORMAL';
         this.perceptionModeActive = false;
-        this.perceptionMeshes = [];
-        this.guidanceSpline = null;
 
         this.selectedHost = null;
+        this.guidanceSpline = null;
+        this.perceptionMeshes = [];
 
         this.lastSensorData = {
             co2: 0,
@@ -32,225 +32,172 @@ class SensorSystem {
             nearestDist: '--',
             dangerScore: 0
         };
+
+        this._initGuidanceSpline();
+    }
+
+    _initGuidanceSpline() {
+        const points = [];
+        for (let i = 0; i < 20; i++) points.push(new THREE.Vector3(0, 0, 0));
+
+        const geo = new THREE.BufferGeometry().setFromPoints(points);
+        const mat = new THREE.LineBasicMaterial({
+            color: 0x00e5ff,
+            linewidth: 3,
+            transparent: true,
+            opacity: 0.85,
+            depthTest: false
+        });
+        this.guidanceSpline = new THREE.Line(geo, mat);
+        this.guidanceSpline.renderOrder = 999;
+        this.guidanceSpline.visible = false;
+        this.scene.add(this.guidanceSpline);
+    }
+
+    buildPerceptionVisuals(hosts) {
+        for (const host of hosts) {
+            const hPos = host.group.position;
+
+            // 1. CO2 Plume ring (Cyan)
+            const co2Geo = new THREE.RingGeometry(0.5, 0.75, 16);
+            const co2Mat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthTest: false });
+            const co2Mesh = new THREE.Mesh(co2Geo, co2Mat);
+            co2Mesh.rotation.x = Math.PI / 2;
+            co2Mesh.position.set(hPos.x, hPos.y + 1.2, hPos.z);
+            co2Mesh.renderOrder = 998;
+            co2Mesh.visible = false;
+            this.scene.add(co2Mesh);
+
+            // 2. Heat Aura (Red-Orange)
+            const heatGeo = new THREE.SphereGeometry(1.8, 8, 6);
+            const heatMat = new THREE.MeshBasicMaterial({ color: 0xff3d00, wireframe: true, transparent: true, opacity: 0.5, depthTest: false });
+            const heatMesh = new THREE.Mesh(heatGeo, heatMat);
+            heatMesh.position.copy(hPos);
+            heatMesh.renderOrder = 998;
+            heatMesh.visible = false;
+            this.scene.add(heatMesh);
+
+            this.perceptionMeshes.push({ host, co2Mesh, heatMesh });
+        }
     }
 
     togglePerceptionMode() {
-        this.perceptionModeActive = !this.perceptionModeActive;
-        this._updateMeshVisibility();
+        this.currentModeIndex = (this.currentModeIndex + 1) % this.MODES.length;
+        this.currentMode = this.MODES[this.currentModeIndex];
+        this.perceptionModeActive = (this.currentMode !== 'NORMAL');
+        this._updateVisibility();
         return this.perceptionModeActive;
     }
 
-    setPerceptionMode(active) {
-        this.perceptionModeActive = active;
-        this._updateMeshVisibility();
-    }
-
-    _updateMeshVisibility() {
+    _updateVisibility() {
+        const isSpec = this.perceptionModeActive;
         for (const item of this.perceptionMeshes) {
-            item.mesh.visible = this.perceptionModeActive;
+            item.co2Mesh.visible = isSpec && (this.currentMode === 'CO2' || this.currentMode === 'FULL PERCEPTION');
+            item.heatMesh.visible = isSpec && (this.currentMode === 'HEAT' || this.currentMode === 'FULL PERCEPTION');
         }
-
         if (this.guidanceSpline) {
-            this.guidanceSpline.visible = this.perceptionModeActive;
-        }
-
-        // Show/hide safe zone indicator halos
-        if (window.gameEngine?.world?.safeZones) {
-            window.gameEngine.world.safeZones.forEach(sz => {
-                if (sz._mesh) sz._mesh.visible = this.perceptionModeActive;
-            });
+            this.guidanceSpline.visible = isSpec;
         }
     }
 
     computeSensors(playerPos, hosts) {
         let maxCO2 = 0, maxHeat = 0, maxOdor = 0, maxMovement = 0;
         let bestScore = -Infinity;
-        let autoTarget = null;
+        let nearestHost = null;
         let nearestDist = Infinity;
 
-        const activeHosts = hosts.filter(h => h.active);
+        const activeHosts = (hosts || []).filter(h => h.active);
 
-        for (const host of activeHosts) {
+        for (let i = 0; i < activeHosts.length; i++) {
+            const host = activeHosts[i];
             const d = host.group.position.distanceTo(playerPos);
             if (d < nearestDist) nearestDist = d;
 
-            // Scientific distance falloff: Signal = S0 / (1 + distance * falloffRate)
-            const co2Signal  = (host.co2Strength  || 1.0) / (1 + d * 0.08); // Long range
-            const heatSignal = (host.heatStrength || 1.0) / (1 + d * 0.28); // Short range
-            const odorSignal = (host.odorStrength || 1.0) / (1 + d * 0.12); // Medium range
-            const moveSignal = (host.movementRate || 0.3) / (1 + d * 0.22); // Kinetic ripples
+            // Distance falloff physics
+            const co2Sig  = (host.co2Strength  || 1.0) / (1 + d * 0.08); // Plumes reach 30m
+            const heatSig = (host.heatStrength || 1.0) / (1 + d * 0.30); // Heat reaches ~3m
+            const odorSig = (host.odorStrength || 1.0) / (1 + d * 0.12); // Skin volatiles reach 15m
+            const moveSig = (host.movementRate || 0.3) / (1 + d * 0.22); // Johnston's organ
 
-            maxCO2      = Math.max(maxCO2, co2Signal);
-            maxHeat     = Math.max(maxHeat, heatSignal);
-            maxOdor     = Math.max(maxOdor, odorSignal);
-            maxMovement = Math.max(maxMovement, moveSignal);
+            maxCO2  = Math.max(maxCO2, co2Sig);
+            maxHeat = Math.max(maxHeat, heatSig);
+            maxOdor = Math.max(maxOdor, odorSig);
+            maxMovement = Math.max(maxMovement, moveSig);
 
-            // Distance proximity score
-            const distScore = Math.max(0, 1 - d / 28);
+            const distScore = Math.max(0, 1 - (d / 32));
+            const dangerPenalty = ((host.alertness || 0) / 100) * 0.35;
 
-            // Target Attraction Formula
+            // Biological Attraction Formula
             const attraction = (
-                co2Signal  * 0.30 +
-                heatSignal * 0.25 +
-                odorSignal * 0.20 +
-                moveSignal * 0.10 +
-                distScore  * 0.15
+                co2Sig * 0.30 +
+                heatSig * 0.25 +
+                odorSig * 0.20 +
+                moveSig * 0.10 +
+                distScore * 0.15 -
+                dangerPenalty
             ) * 100;
 
-            // Danger penalty based on host alertness & species swat risk
-            const dangerPenalty = (host.alertness / 100) * (host.swatDanger || 0.5) * 45;
-            const finalScore = attraction - dangerPenalty;
-
-            if (finalScore > bestScore) {
-                bestScore = finalScore;
-                autoTarget = host;
+            if (attraction > bestScore) {
+                bestScore = attraction;
+                nearestHost = host;
             }
         }
 
-        this.selectedHost = autoTarget;
-        const targetDist = this.selectedHost ? this.selectedHost.group.position.distanceTo(playerPos) : nearestDist;
+        this.selectedHost = nearestHost;
 
         this.lastSensorData = {
-            co2:         Math.round(Math.min(100, maxCO2 * 100)),
-            heat:        Math.round(Math.min(100, maxHeat * 100)),
-            odor:        Math.round(Math.min(100, maxOdor * 100)),
-            movement:    Math.round(Math.min(100, maxMovement * 100)),
-            attraction:  Math.round(Math.max(0, Math.min(100, bestScore))),
-            nearestDist: targetDist < Infinity ? targetDist.toFixed(1) : '--',
-            dangerScore: this.selectedHost ? Math.round(this.selectedHost.alertness) : 0
+            co2: Math.min(100, Math.round(maxCO2 * 100)),
+            heat: Math.min(100, Math.round(maxHeat * 100)),
+            odor: Math.min(100, Math.round(maxOdor * 100)),
+            movement: Math.min(100, Math.round(maxMovement * 100)),
+            attraction: Math.max(0, Math.min(100, Math.round(bestScore))),
+            nearestDist: nearestDist < 999 ? nearestDist : 999,
+            dangerScore: nearestHost ? Math.round(nearestHost.alertness || 0) : 0
         };
 
         return {
             sensorData: this.lastSensorData,
-            nearestHost: this.selectedHost,
-            nearestDist
+            nearestHost: nearestHost,
+            nearestDist: nearestDist
         };
-    }
-
-    buildPerceptionVisuals(hosts) {
-        // Clear previous meshes
-        this.perceptionMeshes.forEach(p => this.scene.remove(p.mesh));
-        this.perceptionMeshes = [];
-        if (this.guidanceSpline) {
-            this.scene.remove(this.guidanceSpline);
-            this.guidanceSpline = null;
-        }
-
-        for (const host of hosts) {
-            if (!host.active) continue;
-
-            // 1. CO2 breath plume (Cyan) — Glowing through walls
-            const co2Geo = new THREE.SphereGeometry(2.6 * (host.co2Strength || 1.0), 16, 12);
-            const co2Mat = new THREE.MeshBasicMaterial({
-                color: 0x00e5ff,
-                transparent: true,
-                opacity: 0.18,
-                depthTest: false,
-                wireframe: false
-            });
-            const co2Mesh = new THREE.Mesh(co2Geo, co2Mat);
-            co2Mesh.position.copy(host.group.position);
-            co2Mesh.position.y += 1.2;
-            co2Mesh.renderOrder = 998;
-            co2Mesh.visible = this.perceptionModeActive;
-            this.scene.add(co2Mesh);
-            this.perceptionMeshes.push({ mesh: co2Mesh, channel: 'CO2', baseOpacity: 0.18 });
-
-            // 2. Heat Infrared Halo (Orange-Red) — Glowing through walls
-            const heatGeo = new THREE.SphereGeometry(1.9 * (host.heatStrength || 1.0), 14, 10);
-            const heatMat = new THREE.MeshBasicMaterial({
-                color: 0xff3d00,
-                transparent: true,
-                opacity: 0.22,
-                depthTest: false
-            });
-            const heatMesh = new THREE.Mesh(heatGeo, heatMat);
-            heatMesh.position.copy(host.group.position);
-            heatMesh.position.y += 0.8;
-            heatMesh.renderOrder = 998;
-            heatMesh.visible = this.perceptionModeActive;
-            this.scene.add(heatMesh);
-            this.perceptionMeshes.push({ mesh: heatMesh, channel: 'HEAT', baseOpacity: 0.22 });
-
-            // 3. Odor Skin Volatile Cloud (Amber-Gold) — Glowing through walls
-            const odorGeo = new THREE.SphereGeometry(2.4 * (host.odorStrength || 1.0), 14, 10);
-            const odorMat = new THREE.MeshBasicMaterial({
-                color: 0xffb300,
-                transparent: true,
-                opacity: 0.14,
-                depthTest: false
-            });
-            const odorMesh = new THREE.Mesh(odorGeo, odorMat);
-            odorMesh.position.copy(host.group.position);
-            odorMesh.renderOrder = 998;
-            odorMesh.visible = this.perceptionModeActive;
-            this.scene.add(odorMesh);
-            this.perceptionMeshes.push({ mesh: odorMesh, channel: 'ODOR', baseOpacity: 0.14 });
-
-            // 4. Movement Acoustic Ripple Ring (Violet) — Mechanoreception
-            const moveGeo = new THREE.RingGeometry(0.8, 1.4, 24);
-            const moveMat = new THREE.MeshBasicMaterial({
-                color: 0xc084fc,
-                transparent: true,
-                opacity: 0.75,
-                side: THREE.DoubleSide,
-                depthTest: false
-            });
-            const moveMesh = new THREE.Mesh(moveGeo, moveMat);
-            moveMesh.position.copy(host.group.position);
-            moveMesh.position.y += 0.15;
-            moveMesh.rotation.x = -Math.PI / 2;
-            moveMesh.renderOrder = 999;
-            moveMesh.visible = this.perceptionModeActive;
-            this.scene.add(moveMesh);
-            this.perceptionMeshes.push({ mesh: moveMesh, channel: 'MOVEMENT', baseOpacity: 0.75 });
-        }
-
-        this._updateMeshVisibility();
-    }
-
-    updateGuidanceSpline(playerPos, targetHost) {
-        if (this.guidanceSpline) {
-            this.scene.remove(this.guidanceSpline);
-            this.guidanceSpline = null;
-        }
-
-        if (!targetHost || !this.perceptionModeActive) return;
-
-        const targetPos = targetHost.group.position.clone();
-        targetPos.y += 1.0;
-
-        // Smooth 3D Quadratic Bézier guidance curve from mosquito to target
-        const mid = playerPos.clone().lerp(targetPos, 0.5);
-        mid.y += 2.0;
-
-        const curve = new THREE.QuadraticBezierCurve3(playerPos.clone(), mid, targetPos);
-        const points = curve.getPoints(24);
-        const geo = new THREE.BufferGeometry().setFromPoints(points);
-
-        const mat = new THREE.LineBasicMaterial({
-            color: 0x00e5ff,
-            transparent: true,
-            opacity: 0.85,
-            depthTest: false,
-            linewidth: 2
-        });
-
-        this.guidanceSpline = new THREE.Line(geo, mat);
-        this.guidanceSpline.renderOrder = 999;
-        this.scene.add(this.guidanceSpline);
     }
 
     updatePerceptionPulse(dt) {
         if (!this.perceptionModeActive) return;
-
-        const t = performance.now() * 0.003;
+        const time = performance.now() * 0.003;
         for (const item of this.perceptionMeshes) {
-            if (item.mesh && item.mesh.visible) {
-                const pulse = Math.sin(t * 2 + item.mesh.id) * 0.35;
-                item.mesh.material.opacity = Math.max(0.04, item.baseOpacity * (1 + pulse));
+            if (item.co2Mesh.visible) {
+                const s = 1.0 + Math.sin(time) * 0.2;
+                item.co2Mesh.scale.set(s, s, 1);
+            }
+            if (item.heatMesh.visible) {
+                const s = 1.0 + Math.cos(time * 1.5) * 0.1;
+                item.heatMesh.scale.set(s, s, s);
             }
         }
+    }
+
+    updateGuidanceSpline(playerPos, targetHost) {
+        if (!this.guidanceSpline || !this.perceptionModeActive || !targetHost || !playerPos) {
+            if (this.guidanceSpline) this.guidanceSpline.visible = false;
+            return;
+        }
+
+        const targetPos = targetHost.group.position.clone();
+        targetPos.y += 1.0;
+
+        const mid = new THREE.Vector3().addVectors(playerPos, targetPos).multiplyScalar(0.5);
+        mid.y += 1.8;
+
+        const curve = new THREE.QuadraticBezierCurve3(playerPos, mid, targetPos);
+        const curvePoints = curve.getPoints(19);
+
+        const posAttr = this.guidanceSpline.geometry.attributes.position;
+        for (let i = 0; i < curvePoints.length; i++) {
+            posAttr.setXYZ(i, curvePoints[i].x, curvePoints[i].y, curvePoints[i].z);
+        }
+        posAttr.needsUpdate = true;
+        this.guidanceSpline.visible = true;
     }
 }
 

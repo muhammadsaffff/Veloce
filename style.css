@@ -690,6 +690,53 @@ html, body {
     margin-top: 12px;
 }
 
+/* Settings Form Controls */
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #cbd5e1;
+}
+
+.setting-select {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #f8fafc;
+    font-size: 12px;
+    outline: none;
+    min-width: 180px;
+    transition: border-color 0.2s;
+}
+
+.setting-select:focus {
+    border-color: #00e5ff;
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+}
+
+.setting-slider {
+    -webkit-appearance: none;
+    width: 180px;
+    height: 6px;
+    background: rgba(15, 23, 42, 0.9);
+    border-radius: 3px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    outline: none;
+}
+
+.setting-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #00e5ff;
+    cursor: pointer;
+    box-shadow: 0 0 8px #00e5ff;
+}
+
 /* Toast */
 #ui-toast {
     position: absolute;
@@ -804,6 +851,208 @@ html, body {
     font-family: var(--font-mono);
 }
 
+/* ==========================================================================
+   Dynamic HUD Crosshair States
+   ========================================================================== */
+#hud-crosshair {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 25;
+    transition: width 0.15s ease, height 0.15s ease, border-color 0.15s ease;
+}
+
+/* Normal: subtle cyan dot with cross ticks */
+.crosshair-normal {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(0, 229, 255, 0.85);
+    box-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
+}
+.crosshair-normal::before,
+.crosshair-normal::after {
+    content: '';
+    position: absolute;
+    background: rgba(0, 229, 255, 0.4);
+}
+.crosshair-normal::before {
+    top: -8px; left: 2px; width: 2px; height: 22px;
+}
+.crosshair-normal::after {
+    top: 2px; left: -8px; width: 22px; height: 2px;
+}
+
+/* Target Locked: pulsing cyan circle */
+.crosshair-target-locked {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #00e5ff;
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.7), inset 0 0 8px rgba(0, 229, 255, 0.3);
+    animation: lockPulse 1.2s infinite ease-in-out;
+}
+.crosshair-target-locked::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: #00e5ff;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes lockPulse {
+    0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.7; }
+    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.7; }
+}
+
+/* Landing Ready: green target brackets */
+.crosshair-landing-ready {
+    width: 34px;
+    height: 34px;
+    border: 2px dashed #00e676;
+    border-radius: 50%;
+    box-shadow: 0 0 16px rgba(0, 230, 118, 0.8), inset 0 0 10px rgba(0, 230, 118, 0.4);
+    animation: landingSnap 0.8s infinite alternate ease-in-out;
+}
+.crosshair-landing-ready::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #00e676;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px #00e676;
+}
+
+@keyframes landingSnap {
+    0% { transform: translate(-50%, -50%) scale(1.0); }
+    100% { transform: translate(-50%, -50%) scale(1.12); }
+}
+
+/* Danger: warning red hazard brackets pulsing */
+.crosshair-danger {
+    width: 38px;
+    height: 38px;
+    border: 2px solid #ff1744;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(255, 23, 68, 0.9);
+    animation: dangerPulse 0.35s infinite alternate ease-in-out;
+}
+.crosshair-danger::after {
+    content: '!';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ff1744;
+    font-weight: 900;
+    font-size: 16px;
+}
+
+@keyframes dangerPulse {
+    0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.8; }
+    100% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+}
+
+/* Feeding state */
+.crosshair-feeding {
+    display: none;
+}
+
+/* ==========================================================================
+   Genuine Staged Loading Screen Overlay
+   ========================================================================== */
+.loading-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #030712;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(14px);
+    transition: opacity 0.4s ease-out;
+}
+
+.loading-box {
+    background: rgba(10, 16, 28, 0.92);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 14px;
+    padding: 36px 42px;
+    text-align: center;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.2);
+}
+
+.loading-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+    animation: floatIcon 2s infinite ease-in-out;
+}
+
+@keyframes floatIcon {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+    100% { transform: translateY(0); }
+}
+
+.loading-title {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #38bdf8, #f8fafc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+}
+
+.loading-tagline {
+    font-size: 11px;
+    font-style: italic;
+    color: #94a3b8;
+    margin-bottom: 24px;
+}
+
+.loading-bar-container {
+    width: 100%;
+    height: 7px;
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    margin-bottom: 10px;
+}
+
+.loading-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0284c7, #00e5ff);
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.8);
+    transition: width 0.2s ease-out;
+}
+
+.loading-status-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #94a3b8;
+    font-family: var(--font-mono);
+}
+
+.fade-out {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 .hidden {
     display: none !important;
 }
+

@@ -1,21 +1,13 @@
 /**
- * 3D Bedroom World Environment (28×12×24m Mosquito Scale)
- * Through the Eyes of a Mosquito
+ * 3D Connected World Environment (8 Zones: House + Outdoor Garden)
+ * Through the Eyes of a Mosquito — Production Upgrade
  *
- * Enormous Bedroom at Night:
- * - Room Size: X: -14 to +14 (28m), Y: 0 to 12 (12m), Z: -12 to +12 (24m)
- * - Furniture:
- *   • Giant bed with rumpled blankets, layered sheets & soft pillows
- *   • Large study desk with glowing laptop, warm desk lamp & desk chair
- *   • Tall wardrobe/cupboard reaching near the ceiling
- *   • Big window with glass panes & pleated draping curtains
- *   • Monstera Deliciosa & Ficus Benjamina potted plants
- *   • Bedroom floor rug
- * - Safe Resting Zones:
- *   • Monstera broad leaves
- *   • Curtain fabric folds
- *   • Cupboard ceiling crevices
- *   • Ficus canopy
+ * Performance Features:
+ * - Centralized reusable material palette (minimizes WebGL state switches)
+ * - Explicit frustum culling enabled on all meshes
+ * - Pre-allocated AABB collision boxes for fast spatial boundary checks
+ * - Safe resting zones, sweet nectar sources, and stagnant water pools
+ * - Connected zones: Master Bedroom, Living Room, Kitchen, Bathroom, Hallway, Balcony, Garden, Pond
  */
 
 class WorldEnvironment {
@@ -23,56 +15,53 @@ class WorldEnvironment {
         this.scene = scene;
         this.collisionBoxes = [];
         this.safeZones = [];
-        this.discoveredAreas = new Set(['BEDROOM']);
+        this.nectarSpots = [];
+        this.waterSpots = [];
+        this.discoveredZones = new Set(['BEDROOM']);
 
-        this.roomBounds = {
-            'BEDROOM': { min: new THREE.Vector3(-14, 0, -12), max: new THREE.Vector3(14, 12, 12), name: 'Master Bedroom', icon: '🛏️' }
+        this.zones = {
+            BEDROOM:     { id: 'BEDROOM',     name: 'Master Bedroom', icon: '🛏️', bounds: { minX: -14, maxX: 14, minZ: -12, maxZ: 12 } },
+            LIVING_ROOM: { id: 'LIVING_ROOM', name: 'Living Room',    icon: '🛋️', bounds: { minX: -14, maxX: 14, minZ: 12,  maxZ: 38 } },
+            KITCHEN:     { id: 'KITCHEN',     name: 'Kitchen',        icon: '🍳', bounds: { minX: 14,  maxX: 36, minZ: 12,  maxZ: 38 } },
+            BATHROOM:    { id: 'BATHROOM',    name: 'Bathroom',       icon: '🛁', bounds: { minX: -36, maxX: -14,minZ: 12,  maxZ: 30 } },
+            BALCONY:     { id: 'BALCONY',     name: 'Balcony Deck',   icon: '🪴', bounds: { minX: 14,  maxX: 28, minZ: -12, maxZ: 10 } },
+            GARDEN_YARD: { id: 'GARDEN_YARD', name: 'Outdoor Garden', icon: '🌿', bounds: { minX: 20,  maxX: 80, minZ: -45, maxZ: 35 } },
+            POND_STREET: { id: 'POND_STREET', name: 'Garden Pond',    icon: '💧', bounds: { minX: 35,  maxX: 85, minZ: -75, maxZ: -20 } }
         };
 
-        this._loadSavedDiscoveries();
+        this._materials = this._createSharedMaterials();
         this._buildWorld();
     }
 
-    _loadSavedDiscoveries() {
-        try {
-            const saved = JSON.parse(localStorage.getItem('mosquito_discovered_areas')) || ['BEDROOM'];
-            saved.forEach(a => this.discoveredAreas.add(a));
-        } catch {
-            this.discoveredAreas.add('BEDROOM');
-        }
-    }
-
-    saveDiscoveries() {
-        try {
-            localStorage.setItem('mosquito_discovered_areas', JSON.stringify(Array.from(this.discoveredAreas)));
-            localStorage.setItem('mosquito_exploration_pct', '100');
-        } catch {}
-    }
-
-    getExplorationPercent() {
-        return 100;
-    }
-
-    getCurrentArea(pos) {
-        return { key: 'BEDROOM', name: 'Master Bedroom', icon: '🛏️' };
-    }
-
-    checkAreaDiscovery(pos) {
-        if (!this.discoveredAreas.has('BEDROOM')) {
-            this.discoveredAreas.add('BEDROOM');
-            this.saveDiscoveries();
-            return { key: 'BEDROOM', name: 'Master Bedroom', icon: '🛏️' };
-        }
-        return null;
-    }
-
-    _mat(color, roughness = 0.8, metalness = 0.1) {
-        return new THREE.MeshStandardMaterial({ color, roughness, metalness });
+    _createSharedMaterials() {
+        return {
+            woodFloor: new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.65, metalness: 0.1 }),
+            tileFloor: new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.35, metalness: 0.2 }),
+            bathFloor: new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.9 }),
+            grass:     new THREE.MeshStandardMaterial({ color: 0x2e5c1e, roughness: 0.9, metalness: 0.05 }),
+            wallIndoor:new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.05 }),
+            wallOutdoor:new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9, metalness: 0.05 }),
+            ceiling:   new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9, metalness: 0.05 }),
+            woodDark:  new THREE.MeshStandardMaterial({ color: 0x3b2314, roughness: 0.7 }),
+            mattress:  new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.9 }),
+            blanket:   new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.85 }),
+            pillow:    new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.95 }),
+            metal:     new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.35, metalness: 0.75 }),
+            glass:     new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.3 }),
+            leaf:      new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.55, side: THREE.DoubleSide }),
+            treeBark:  new THREE.MeshStandardMaterial({ color: 0x3f2e20, roughness: 0.95 }),
+            treeFoliage:new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.85 }),
+            water:     new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.1, metalness: 0.85, transparent: true, opacity: 0.82 }),
+            flower:    new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.45 }),
+            glowWarm:  new THREE.MeshBasicMaterial({ color: 0xffedd5 }),
+            screenGlow:new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+        };
     }
 
     _box(w, h, d, mat, x, y, z, hasCollision = true) {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
         mesh.position.set(x, y, z);
+        mesh.frustumCulled = true;
         mesh.receiveShadow = true;
         mesh.castShadow = true;
         this.scene.add(mesh);
@@ -86,382 +75,266 @@ class WorldEnvironment {
         return mesh;
     }
 
+    _cylinder(rt, rb, h, segs, mat, x, y, z, hasCollision = true) {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segs), mat);
+        mesh.position.set(x, y, z);
+        mesh.frustumCulled = true;
+        mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        this.scene.add(mesh);
+
+        if (hasCollision) {
+            const r = Math.max(rt, rb);
+            this.collisionBoxes.push({
+                min: new THREE.Vector3(x - r, y - h / 2, z - r),
+                max: new THREE.Vector3(x + r, y + h / 2, z + r)
+            });
+        }
+        return mesh;
+    }
+
+    _addSafeZone(name, x, y, z, radius) {
+        const p = new THREE.Vector3(x, y, z);
+        this.safeZones.push({ name, pos: p, position: p, radius });
+    }
+
+    _addNectar(name, x, y, z, amount = 35) {
+        const p = new THREE.Vector3(x, y, z);
+        this.nectarSpots.push({ name, pos: p, position: p, radius: 1.2, amount, replenished: true });
+    }
+
+    _addWater(name, x, y, z, isPond = false) {
+        this.waterSpots.push({ name, pos: new THREE.Vector3(x, y, z), radius: isPond ? 8.0 : 1.4, isPond });
+    }
+
     _buildWorld() {
-        this._buildRoomEnclosure();
-        this._buildBed();
-        this._buildStudyDesk();
-        this._buildWardrobeCupboard();
-        this._buildWindowAndCurtains();
-        this._buildPlants();
-        this._buildRugAndDecor();
-        this._buildSafeZones();
-    }
+        const m = this._materials;
 
-    _buildRoomEnclosure() {
-        // Floor (Dark hardwood floor plank texture tone)
-        const floorMat = this._mat(0x181e2b, 0.85);
-        const floor = new THREE.Mesh(new THREE.BoxGeometry(28, 0.4, 24), floorMat);
-        floor.position.set(0, -0.2, 0);
-        floor.receiveShadow = true;
-        this.scene.add(floor);
-        this.collisionBoxes.push({ min: new THREE.Vector3(-14, -1, -12), max: new THREE.Vector3(14, 0.05, 12) });
+        // 1. Master Bedroom (X: -14 to 14, Z: -12 to 12, Y: 0 to 12)
+        this._box(28, 0.4, 24, m.woodFloor, 0, -0.2, 0, false);
+        this._box(28, 0.4, 24, m.ceiling, 0, 12.2, 0, true);
 
-        // Ceiling
-        const ceilMat = this._mat(0x0e131d, 0.95);
-        const ceiling = new THREE.Mesh(new THREE.BoxGeometry(28, 0.4, 24), ceilMat);
-        ceiling.position.set(0, 12.2, 0);
-        this.scene.add(ceiling);
-        this.collisionBoxes.push({ min: new THREE.Vector3(-14, 11.95, -12), max: new THREE.Vector3(14, 13.5, 12) });
+        // North & West Bedroom Walls
+        this._box(28, 12, 0.4, m.wallIndoor, 0, 6, -12, true);
+        this._box(0.4, 12, 24, m.wallIndoor, -14, 6, 0, true);
 
-        // Walls (X: -14 to +14, Z: -12 to +12, Height: 12)
-        const wallMat = this._mat(0x1a2333, 0.9);
+        // East Bedroom Wall with Large Open Window to Balcony
+        this._box(0.4, 3.2, 24, m.wallIndoor, 14, 1.6, 0, true);
+        this._box(0.4, 3.2, 24, m.wallIndoor, 14, 10.4, 0, true);
+        this._box(0.4, 5.6, 8, m.wallIndoor, 14, 6, -8, true);
+        this._box(0.4, 5.6, 8, m.wallIndoor, 14, 6, 8, true);
+        this._box(0.8, 0.3, 8.4, m.woodDark, 14, 3.2, 0, true); // Sill
+        this._box(0.1, 5.4, 4, m.glass, 14, 6.0, 2, true); // Half glass pane (opening at Z: -4 to 0)
 
-        // Back Wall (Z: -12)
-        this._box(28, 12, 0.4, wallMat, 0, 6, -12);
+        // Window Curtains (Safe Resting Shelters)
+        this._box(0.6, 9.0, 2.4, m.blanket, 13.6, 6.0, -4.5, true);
+        this._box(0.6, 9.0, 2.4, m.blanket, 13.6, 6.0, 4.5, true);
+        this._addSafeZone('Window Curtain Folds', 13.4, 7.0, -4.2, 1.8);
 
-        // Front Wall with Window opening (Z: +12)
-        // Solid sections around window
-        this._box(8, 12, 0.4, wallMat, -10, 6, 12);
-        this._box(8, 12, 0.4, wallMat, 10, 6, 12);
-        this._box(12, 2.5, 0.4, wallMat, 0, 1.25, 12);  // below window
-        this._box(12, 2.5, 0.4, wallMat, 0, 10.75, 12); // above window
+        // South Bedroom Wall with Open Doorway to Living Room
+        this._box(10, 12, 0.4, m.wallIndoor, -9, 6, 12, true);
+        this._box(10, 12, 0.4, m.wallIndoor, 9, 6, 12, true);
+        this._box(8, 4, 0.4, m.wallIndoor, 0, 10, 12, true); // Door header (X: -4 to 4 is open)
 
-        // Left Wall (X: -14)
-        this._box(0.4, 12, 24, wallMat, -14, 6, 0);
+        // Bedroom Furniture: Giant Bed
+        this._box(8.5, 1.2, 11, m.woodDark, -6, 0.6, 3.5, true);
+        this._box(8.8, 4.5, 0.8, m.woodDark, -6, 2.6, -1.8, true); // Headboard
+        this._box(8.0, 1.4, 10.2, m.mattress, -6, 1.8, 3.5, true); // Mattress
+        this._box(3.2, 0.6, 2.0, m.pillow, -8, 2.7, 0.2, true); // Pillows
+        this._box(3.2, 0.6, 2.0, m.pillow, -4, 2.7, 0.2, true);
+        this._box(7.8, 0.5, 7.0, m.blanket, -6, 2.6, 5.0, true); // Rumpled Blanket
+        this._addSafeZone('Under Bed Frame Shelter', -6, 0.4, 4.0, 2.6);
 
-        // Right Wall (X: +14)
-        this._box(0.4, 12, 24, wallMat, 14, 6, 0);
+        // Study Desk, Chair & Laptop
+        this._box(7.0, 0.4, 3.5, m.woodDark, 8, 3.2, -7, true);
+        this._cylinder(0.18, 0.18, 3.2, 8, m.metal, 5, 1.6, -8.2, true);
+        this._cylinder(0.18, 0.18, 3.2, 8, m.metal, 11, 1.6, -8.2, true);
+        this._cylinder(0.18, 0.18, 3.2, 8, m.metal, 5, 1.6, -5.8, true);
+        this._cylinder(0.18, 0.18, 3.2, 8, m.metal, 11, 1.6, -5.8, true);
 
-        // Baseboard Moldings
-        const trimMat = this._mat(0x0f172a, 0.7);
-        this._box(28, 0.4, 0.1, trimMat, 0, 0.2, -11.9, false);
-        this._box(0.1, 0.4, 24, trimMat, -13.9, 0.2, 0, false);
-        this._box(0.1, 0.4, 24, trimMat, 13.9, 0.2, 0, false);
-    }
+        this._box(1.8, 0.1, 1.2, m.metal, 7.5, 3.45, -7, false);
+        this._box(1.8, 1.2, 0.1, m.screenGlow, 7.5, 4.1, -7.5, false); // Laptop
 
-    _buildBed() {
-        // Bed base: Center around (-6, 0, -4)
-        // Solid wooden bed frame
-        this._box(8.5, 0.8, 12.5, this._mat(0x27190f, 0.8), -6, 0.4, -4);
+        // Tall Wardrobe Cupboard
+        this._box(4.5, 9.5, 2.5, m.woodDark, -11, 4.75, -9, true);
+        this._addSafeZone('Top of Wardrobe Ceiling Crevice', -11, 10.2, -9, 1.8);
 
-        // Tall Wooden Headboard
-        this._box(8.5, 3.8, 0.6, this._mat(0x382314, 0.8), -6, 1.9, -10.2);
+        // Potted Monstera Plant
+        this._buildPottedPlant(11, 0, 7);
 
-        // Giant Thick Mattress
-        this._box(8.0, 1.0, 11.8, this._mat(0xe2e8f0, 0.95), -6, 1.3, -4);
+        // 2. Living Room (X: -14 to 14, Z: 12 to 38)
+        this._box(28, 0.4, 26, m.woodFloor, 0, -0.2, 25, false);
+        this._box(28, 0.4, 26, m.ceiling, 0, 12.2, 25, true);
+        this._box(28, 12, 0.4, m.wallIndoor, 0, 6, 38, true); // South Wall
 
-        // Rumpled Folded Blanket (Deep indigo navy)
-        this._box(7.4, 0.7, 8.5, this._mat(0x1e3a8a, 0.9), -6, 1.95, -2.5);
-        // Blanket wrinkles / ridges for realistic rumpled texture
-        this._box(7.0, 0.35, 2.2, this._mat(0x1e40af, 0.9), -6, 2.3, 0.5);
-        this._box(3.5, 0.3, 3.0, this._mat(0x2563eb, 0.9), -4.5, 2.3, -4.0);
+        // Large L-Sofa
+        this._box(10.0, 1.2, 4.0, m.blanket, 0, 0.8, 24, true);
+        this._box(10.0, 2.8, 1.0, m.blanket, 0, 2.2, 26, true);
+        this._box(1.2, 2.2, 4.0, m.blanket, -4.8, 1.5, 24, true);
+        this._box(1.2, 2.2, 4.0, m.blanket, 4.8, 1.5, 24, true);
+        this._box(4.0, 1.2, 4.5, m.blanket, -3.2, 0.8, 28, true);
+        this._addSafeZone('Under Living Room Sofa', 0, 0.4, 24, 3.0);
 
-        // Giant Soft Pillows
-        this._box(3.4, 0.55, 2.2, this._mat(0xf1f5f9, 0.9), -8.2, 2.0, -8.5);
-        this._box(3.4, 0.55, 2.2, this._mat(0xf8fafc, 0.9), -3.8, 2.0, -8.5);
+        // Coffee Table & Floor Rug
+        this._box(6.0, 0.3, 3.0, m.woodDark, 0, 1.8, 20, true);
+        this._box(11.0, 0.04, 9.0, m.pillow, 0, 0.02, 22, false);
 
-        // Bedside Nightstand
-        this._box(2.4, 2.2, 2.2, this._mat(0x27190f, 0.8), -11.5, 1.1, -9.5);
-        // Small glowing alarm clock on nightstand
-        const clock = this._box(0.8, 0.4, 0.4, this._mat(0x0f172a, 0.3), -11.5, 2.4, -9.5, false);
-        const clockDisplay = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.7, 0.3),
-            new THREE.MeshBasicMaterial({ color: 0x22c55e })
-        );
-        clockDisplay.position.set(-11.5, 2.4, -9.29);
-        this.scene.add(clockDisplay);
-    }
+        // TV Stand & Flat TV Screen
+        this._box(8.0, 2.0, 1.8, m.woodDark, 0, 1.0, 36, true);
+        this._box(7.0, 4.0, 0.2, m.metal, 0, 4.5, 36.2, true);
+        this._box(6.6, 3.6, 0.1, m.screenGlow, 0, 4.5, 36.0, false);
 
-    _buildStudyDesk() {
-        // Study desk in positive X quadrant (X: 7, Z: -5)
-        const deskMat = this._mat(0x382314, 0.7);
-        const legMat  = this._mat(0x1c1917, 0.8);
+        // 3. Kitchen & Dining (X: 14 to 36, Z: 12 to 38)
+        this._box(22, 0.4, 26, m.tileFloor, 25, -0.2, 25, false);
+        this._box(22, 0.4, 26, m.ceiling, 25, 12.2, 25, true);
+        this._box(22, 12, 0.4, m.wallIndoor, 25, 6, 38, true);
+        this._box(0.4, 12, 26, m.wallIndoor, 36, 6, 25, true);
 
-        // Desktop
-        this._box(7.5, 0.35, 4.2, deskMat, 7.5, 4.2, -6.5);
+        // Counter & Sink with Water Puddle
+        this._box(18.0, 3.4, 3.0, m.metal, 25, 1.7, 34, true);
+        this._box(2.2, 0.05, 1.4, m.water, 22, 3.45, 34, false);
+        this._addWater('Kitchen Sink Water Droplets', 22, 3.5, 34, false);
 
-        // Desk Legs (Sturdy wooden legs)
-        this._box(0.35, 4.2, 0.35, legMat, 4.2, 2.1, -8.2);
-        this._box(0.35, 4.2, 0.35, legMat, 10.8, 2.1, -8.2);
-        this._box(0.35, 4.2, 0.35, legMat, 4.2, 2.1, -4.8);
-        this._box(0.35, 4.2, 0.35, legMat, 10.8, 2.1, -4.8);
+        // Fruit Bowl (Nectar Energy Source)
+        this._cylinder(1.2, 0.8, 0.6, 12, m.pillow, 27, 3.7, 34, true);
+        const fruitMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 });
+        this._cylinder(0.5, 0.5, 0.5, 8, fruitMat, 27, 4.1, 34, false);
+        this._addNectar('Ripe Sweet Fruit Bowl', 27, 4.2, 34, 40);
 
-        // Open Laptop on Desk
-        const laptopBase = this._box(2.2, 0.08, 1.4, this._mat(0x94a3b8, 0.3, 0.8), 7.5, 4.41, -6.0, false);
-        const laptopScreen = new THREE.Mesh(
-            new THREE.BoxGeometry(2.2, 1.3, 0.06),
-            this._mat(0x0f172a, 0.2, 0.9)
-        );
-        laptopScreen.position.set(7.5, 5.05, -6.7);
-        laptopScreen.rotation.x = -0.2;
-        this.scene.add(laptopScreen);
+        // Refrigerator
+        this._box(3.5, 8.5, 3.5, m.metal, 33, 4.25, 15, true);
 
-        // Screen blue-light display plane
-        const screenGlow = new THREE.Mesh(
-            new THREE.PlaneGeometry(2.0, 1.1),
-            new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
-        );
-        screenGlow.position.set(7.5, 5.05, -6.66);
-        screenGlow.rotation.x = -0.2;
-        this.scene.add(screenGlow);
+        // 4. Bathroom (X: -36 to -14, Z: 12 to 30)
+        this._box(22, 0.4, 18, m.bathFloor, -25, -0.2, 21, false);
+        this._box(22, 0.4, 18, m.ceiling, -25, 12.2, 21, true);
+        this._box(0.4, 12, 18, m.wallIndoor, -36, 6, 21, true);
+        this._box(22, 12, 0.4, m.wallIndoor, -25, 6, 30, true);
 
-        // Warm Desk Lamp
-        // Base
-        this._box(0.9, 0.12, 0.9, this._mat(0xd97706, 0.4, 0.6), 10.2, 4.43, -7.8, false);
-        // Stem
-        this._box(0.1, 1.8, 0.1, this._mat(0xd97706, 0.4, 0.6), 10.2, 5.3, -7.8, false);
-        // Lampshade
-        const shade = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.35, 0.75, 0.8, 12, 1, true),
-            new THREE.MeshStandardMaterial({ color: 0xfef08a, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
-        );
-        shade.position.set(10.2, 6.2, -7.8);
-        this.scene.add(shade);
+        // Bathtub & Water Surface
+        this._box(5.0, 2.6, 10.0, m.pillow, -30, 1.3, 22, true);
+        this._box(3.8, 0.1, 8.5, m.water, -30, 1.8, 22, false);
+        this._addWater('Bathtub Water Surface', -30, 1.9, 22, false);
 
-        // Stack of textbooks
-        this._box(1.8, 0.5, 1.3, this._mat(0x991b1b, 0.8), 5.2, 4.62, -7.2, false);
-        this._box(1.6, 0.4, 1.2, this._mat(0x065f46, 0.8), 5.3, 5.07, -7.2, false);
+        // Hanging Towel (Shelter)
+        this._box(1.8, 4.5, 0.3, m.blanket, -22, 5.0, 13.5, true);
+        this._addSafeZone('Behind Hanging Towel', -22, 5.0, 13.5, 1.6);
 
-        // Desk Chair (Office ergonomic chair)
-        this._box(2.2, 0.35, 2.2, this._mat(0x1e293b, 0.85), 7.5, 2.2, -3.2);
-        this._box(2.2, 2.8, 0.3, this._mat(0x1e293b, 0.85), 7.5, 3.6, -2.1);
-        this._box(0.3, 2.2, 0.3, this._mat(0x0f172a, 0.5, 0.7), 7.5, 1.1, -3.2);
-    }
+        // 5. Balcony Deck (X: 14 to 28, Z: -12 to 10)
+        this._box(14, 0.4, 22, m.woodFloor, 21, -0.2, -1, false);
+        this._box(0.3, 0.3, 22, m.metal, 28, 4.2, -1, true); // Railing
+        this._box(14, 0.3, 0.3, m.metal, 21, 4.2, -12, true);
+        this._box(14, 0.3, 0.3, m.metal, 21, 4.2, 10, true);
 
-    _buildWardrobeCupboard() {
-        // Tall wardrobe along back wall (X: -10, Z: 6)
-        // 5.5m wide, 10.5m tall, 2.8m deep (ceiling is 12m, leaving a 1.5m crevice at the top!)
-        const woodMat = this._mat(0x27190f, 0.75);
-        this._box(5.5, 10.5, 2.8, woodMat, -10.5, 5.25, 6.5);
+        // Flower Planters on Balcony
+        this._buildPlanter(20, 0.5, -5);
+        this._buildPlanter(20, 0.5, 3);
 
-        // Wardrobe door handles
-        this._box(0.1, 1.2, 0.15, this._mat(0xd4af37, 0.3, 0.8), -8.2, 5.2, 7.95, false);
-        this._box(0.1, 1.2, 0.15, this._mat(0xd4af37, 0.3, 0.8), -12.8, 5.2, 7.95, false);
-    }
+        // 6. Outdoor Garden & Yard (X: 20 to 80, Z: -45 to 35)
+        const grassGround = this._box(75, 0.6, 130, m.grass, 55, -0.3, -10, false);
+        grassGround.receiveShadow = true;
 
-    _buildWindowAndCurtains() {
-        // Enormous window on front wall (Z: +12, X: -6 to +6, Y: 2.5 to 9.5)
-        const frameMat = this._mat(0x1e293b, 0.7);
+        // Giant Oak Tree (X: 45, Z: -10)
+        this._cylinder(1.8, 2.4, 18, 12, m.treeBark, 45, 9, -10, true);
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(9.0, 12, 10), m.treeFoliage);
+        canopy.position.set(45, 20, -10);
+        this.scene.add(canopy);
+        this._addSafeZone('Oak Tree Deep Canopy', 45, 19.0, -10, 4.0);
+        this._addSafeZone('Oak Tree Hollow Bark', 45, 4.0, -8, 2.0);
 
-        // Outer window frame
-        this._box(12.4, 0.4, 0.6, frameMat, 0, 2.5, 12);
-        this._box(12.4, 0.4, 0.6, frameMat, 0, 9.5, 12);
-        this._box(0.4, 7.0, 0.6, frameMat, -6.0, 6.0, 12);
-        this._box(0.4, 7.0, 0.6, frameMat, 6.0, 6.0, 12);
-        // Window mullions (cross beams)
-        this._box(0.2, 7.0, 0.4, frameMat, 0, 6.0, 12);
-        this._box(12.0, 0.2, 0.4, frameMat, 0, 6.0, 12);
+        // Garden Bench
+        this._box(6.0, 0.4, 1.8, m.woodDark, 52, 1.6, 12, true);
+        this._addSafeZone('Under Garden Bench', 52, 0.6, 12, 2.5);
 
-        // Window Glass (translucent blue night sheen)
-        const glassMat = new THREE.MeshStandardMaterial({
-            color: 0x38bdf8,
-            transparent: true,
-            opacity: 0.15,
-            roughness: 0.1,
-            metalness: 0.9,
-            side: THREE.DoubleSide
-        });
-        const glass = new THREE.Mesh(new THREE.PlaneGeometry(12.0, 7.0), glassMat);
-        glass.position.set(0, 6.0, 11.95);
-        this.scene.add(glass);
+        // Wild Flower Clusters with Nectar
+        this._buildFlowerCluster(38, 0, 5);
+        this._buildFlowerCluster(55, 0, -25);
 
-        // Curtain Rod
-        const rodMat = this._mat(0xd4af37, 0.3, 0.8);
-        this._box(14.0, 0.15, 0.15, rodMat, 0, 10.2, 11.4, false);
+        // 7. Garden Stagnant Pond & Perimeter (X: 58, Z: -45)
+        const pondGeo = new THREE.CylinderGeometry(11.0, 11.0, 0.3, 24);
+        const pondMesh = new THREE.Mesh(pondGeo, m.water);
+        pondMesh.position.set(58, 0.05, -45);
+        this.scene.add(pondMesh);
+        this._addWater('Stagnant Breeding Pond', 58, 0.2, -45, true);
 
-        // Pleated Draping Curtains (Soft fabric with folds)
-        const curtainMat = this._mat(0x334155, 0.95);
-
-        // Left Curtain Folds
-        for (let i = 0; i < 4; i++) {
-            const zOffset = (i % 2 === 0) ? 0.15 : -0.15;
-            this._box(0.9, 9.0, 0.2, curtainMat, -6.8 + i * 0.45, 5.7, 11.3 + zOffset, true);
+        // Floating Lily Pads (Oviposition & Safe Zones)
+        for (let i = 0; i < 5; i++) {
+            const angle = (i / 5) * Math.PI * 2;
+            const px = 58 + Math.cos(angle) * 5.5;
+            const pz = -45 + Math.sin(angle) * 5.5;
+            const lilyPad = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.04, 12), m.leaf);
+            lilyPad.position.set(px, 0.22, pz);
+            this.scene.add(lilyPad);
+            this._addSafeZone(`Lily Pad #${i+1}`, px, 0.3, pz, 1.8);
         }
 
-        // Right Curtain Folds
-        for (let i = 0; i < 4; i++) {
-            const zOffset = (i % 2 === 0) ? 0.15 : -0.15;
-            this._box(0.9, 9.0, 0.2, curtainMat, 5.4 + i * 0.45, 5.7, 11.3 + zOffset, true);
+        // Stone Perimeter Wall & Street Lamp
+        this._box(1.5, 4.5, 110, m.wallOutdoor, 85, 2.25, -15, true);
+        this._cylinder(0.25, 0.35, 16.0, 8, m.metal, 65, 8.0, -30, true);
+
+        // World Bounds Barriers (Prevents falling through floor or flying infinitely)
+        this.collisionBoxes.push({ min: new THREE.Vector3(-100, -2, -100), max: new THREE.Vector3(120, 0, 100) });
+        this.collisionBoxes.push({ min: new THREE.Vector3(-100, 28, -100), max: new THREE.Vector3(120, 32, 100) });
+    }
+
+    _buildPottedPlant(x, y, z) {
+        const m = this._materials;
+        this._cylinder(1.0, 0.7, 1.8, 12, m.woodDark, x, y + 0.9, z, true);
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2;
+            const lx = x + Math.cos(angle) * 1.4;
+            const lz = z + Math.sin(angle) * 1.4;
+            const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.9), m.leaf);
+            leaf.position.set(lx, y + 2.0, lz);
+            leaf.rotation.y = angle;
+            this.scene.add(leaf);
         }
+        this._addSafeZone('Potted Ficus Leaves', x, y + 2.2, z, 1.8);
     }
 
-    _buildPlants() {
-        // 1. Monstera Deliciosa Plant (Corner X: -11.5, Z: -2.0)
-        // Ceramic Pot
-        const potMat = this._mat(0x78350f, 0.85);
-        const pot = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.0, 2.2, 14), potMat);
-        pot.position.set(-11.5, 1.1, -2.0);
-        this.scene.add(pot);
-        this.collisionBoxes.push({
-            min: new THREE.Vector3(-12.8, 0, -3.3),
-            max: new THREE.Vector3(-10.2, 2.2, -0.7)
-        });
+    _buildPlanter(x, y, z) {
+        const m = this._materials;
+        this._box(4.5, 0.8, 1.5, m.woodDark, x, y + 0.4, z, true);
+        this._addNectar('Balcony Flowers', x, y + 1.2, z, 25);
+    }
 
-        // Monstera broad fenestrated leaves
-        const leafMat = new THREE.MeshStandardMaterial({
-            color: 0x15803d,
-            roughness: 0.6,
-            metalness: 0.1,
-            side: THREE.DoubleSide
-        });
-
-        const leafOffsets = [
-            { angle: 0.2,  h: 2.8, dist: 1.8, tilt: 0.35, scale: 2.4 },
-            { angle: 1.3,  h: 3.4, dist: 2.1, tilt: 0.28, scale: 2.7 },
-            { angle: 2.4,  h: 4.1, dist: 1.9, tilt: 0.40, scale: 2.5 },
-            { angle: 3.6,  h: 4.8, dist: 2.2, tilt: 0.30, scale: 2.8 },
-            { angle: 4.7,  h: 3.2, dist: 1.7, tilt: 0.45, scale: 2.3 },
-            { angle: 5.6,  h: 4.3, dist: 2.0, tilt: 0.32, scale: 2.6 },
-        ];
-
-        leafOffsets.forEach(cfg => {
-            const lx = -11.5 + Math.cos(cfg.angle) * cfg.dist;
-            const lz = -2.0  + Math.sin(cfg.angle) * cfg.dist;
-
-            // Stem
-            const stem = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.04, 0.06, cfg.h - 1.5, 6),
-                this._mat(0x166534, 0.8)
-            );
-            stem.position.set((-11.5 + lx) / 2, (1.5 + cfg.h) / 2, (-2.0 + lz) / 2);
-            this.scene.add(stem);
-
-            // Broad Leaf blade
-            const leafMesh = new THREE.Mesh(new THREE.PlaneGeometry(cfg.scale, cfg.scale * 0.8), leafMat);
-            leafMesh.position.set(lx, cfg.h, lz);
-            leafMesh.rotation.set(-cfg.tilt, cfg.angle, 0.15);
-            this.scene.add(leafMesh);
-        });
-
-        // 2. Ficus Benjamina Plant (Near window X: 11.5, Z: 7.0)
-        const ficusPot = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.9, 1.8, 12), this._mat(0x57534e, 0.9));
-        ficusPot.position.set(11.5, 0.9, 7.0);
-        this.scene.add(ficusPot);
-        this.collisionBoxes.push({
-            min: new THREE.Vector3(10.3, 0, 5.8),
-            max: new THREE.Vector3(12.7, 1.8, 8.2)
-        });
-
-        // Ficus Trunk & Dense Canopy
-        const trunkMat = this._mat(0x44403c, 0.9);
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.25, 4.0, 8), trunkMat);
-        trunk.position.set(11.5, 2.9, 7.0);
-        this.scene.add(trunk);
-
-        const ficusLeafMat = new THREE.MeshStandardMaterial({
-            color: 0x166534,
-            roughness: 0.7,
-            metalness: 0.05,
-            side: THREE.DoubleSide
-        });
-
-        // Multiple branching canopy clusters
-        for (let i = 0; i < 8; i++) {
-            const ang = (i / 8) * Math.PI * 2;
-            const cluster = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6), ficusLeafMat);
-            cluster.position.set(11.5 + Math.cos(ang) * 1.2, 4.8 + (i % 3) * 0.6, 7.0 + Math.sin(ang) * 1.2);
-            cluster.scale.set(1.1, 0.7, 1.1);
-            this.scene.add(cluster);
+    _buildFlowerCluster(x, y, z) {
+        const m = this._materials;
+        for (let i = 0; i < 6; i++) {
+            const fx = x + (Math.random() - 0.5) * 3.5;
+            const fz = z + (Math.random() - 0.5) * 3.5;
+            const blossom = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), m.flower);
+            blossom.position.set(fx, y + 0.7, fz);
+            this.scene.add(blossom);
         }
-    }
-
-    _buildRugAndDecor() {
-        // Large Bedroom Floor Rug where Dog rests (X: 2, Z: 2)
-        const rugMat = this._mat(0x334155, 0.95);
-        const rug = new THREE.Mesh(new THREE.BoxGeometry(9.0, 0.06, 7.0), rugMat);
-        rug.position.set(2.0, 0.03, 2.0);
-        rug.receiveShadow = true;
-        this.scene.add(rug);
-
-        // Wastebasket near desk
-        const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.5, 1.4, 10, 1, true), this._mat(0x475569, 0.5));
-        bin.position.set(3.6, 0.7, -7.5);
-        this.scene.add(bin);
-        this.collisionBoxes.push({
-            min: new THREE.Vector3(2.9, 0, -8.2),
-            max: new THREE.Vector3(4.3, 1.4, -6.8)
-        });
-    }
-
-    _buildSafeZones() {
-        // Safe resting zones designated in prompt:
-        // 1. Monstera leaves
-        // 2. Curtain folds
-        // 3. Cupboard ceiling crevices
-        // 4. Ficus canopy
-        this.safeZones = [
-            {
-                name: 'Monstera Broad Leaf Sanctuary',
-                position: new THREE.Vector3(-10.2, 4.4, -1.8),
-                radius: 1.8,
-                icon: '🌿'
-            },
-            {
-                name: 'Monstera Lower Leaf Rest',
-                position: new THREE.Vector3(-12.5, 3.2, -0.6),
-                radius: 1.6,
-                icon: '🍃'
-            },
-            {
-                name: 'Pleated Curtain Deep Fold',
-                position: new THREE.Vector3(-5.8, 6.2, 11.3),
-                radius: 1.6,
-                icon: '🪟'
-            },
-            {
-                name: 'Right Curtain Fold Shelter',
-                position: new THREE.Vector3(5.8, 6.2, 11.3),
-                radius: 1.6,
-                icon: '🪟'
-            },
-            {
-                name: 'Wardrobe Ceiling Crevice',
-                position: new THREE.Vector3(-10.5, 11.2, 6.5),
-                radius: 2.2,
-                icon: '🚪'
-            },
-            {
-                name: 'Ficus Tree Canopy Hideaway',
-                position: new THREE.Vector3(11.5, 5.2, 7.0),
-                radius: 2.0,
-                icon: '🌳'
-            },
-            {
-                name: 'Under Bed Shadow Haven',
-                position: new THREE.Vector3(-6.0, 0.4, -4.0),
-                radius: 2.4,
-                icon: '🛏️'
-            }
-        ];
-
-        // Add visual glowing green sanctuary indicators for perception & debug
-        const szMat = new THREE.MeshBasicMaterial({
-            color: 0x00e676,
-            transparent: true,
-            opacity: 0.14,
-            wireframe: true
-        });
-
-        this.safeZones.forEach(sz => {
-            const halo = new THREE.Mesh(new THREE.SphereGeometry(sz.radius * 0.7, 10, 8), szMat);
-            halo.position.copy(sz.position);
-            halo.visible = false; // toggled on in perception mode
-            this.scene.add(halo);
-            sz._mesh = halo;
-        });
+        this._addNectar('Wild Garden Flowers', x, y + 0.9, z, 45);
     }
 
     /**
-     * Check 3D AABB Collision against world boxes
+     * Determine current active zone based on 3D player position
      */
-    checkCollision(pos, radius = 0.08) {
-        // Outer room boundaries check
-        if (pos.x - radius < -14 || pos.x + radius > 14) return true;
-        if (pos.y - radius < 0.1 || pos.y + radius > 11.9) return true;
-        if (pos.z - radius < -12 || pos.z + radius > 12) return true;
+    getCurrentZone(pos) {
+        if (!pos) return this.zones.BEDROOM;
+        for (const k in this.zones) {
+            const z = this.zones[k];
+            const b = z.bounds;
+            if (pos.x >= b.minX && pos.x <= b.maxX && pos.z >= b.minZ && pos.z <= b.maxZ) {
+                return z;
+            }
+        }
+        return (pos.x > 15) ? this.zones.GARDEN_YARD : this.zones.BEDROOM;
+    }
 
-        // Interior furniture collision
-        for (const b of this.collisionBoxes) {
+    getCurrentZoneName(pos) {
+        const z = this.getCurrentZone(pos);
+        return z ? z.name : '🛏️ Bedroom';
+    }
+
+    /**
+     * Fast AABB collision test
+     */
+    checkCollision(pos, radius = 0.09) {
+        for (let i = 0; i < this.collisionBoxes.length; i++) {
+            const b = this.collisionBoxes[i];
             if (pos.x + radius > b.min.x && pos.x - radius < b.max.x &&
                 pos.y + radius > b.min.y && pos.y - radius < b.max.y &&
                 pos.z + radius > b.min.z && pos.z - radius < b.max.z) {
@@ -471,13 +344,35 @@ class WorldEnvironment {
         return false;
     }
 
-    /**
-     * Check if player is near a safe resting zone
-     */
     getNearbySafeZone(pos) {
-        for (const sz of this.safeZones) {
-            if (pos.distanceTo(sz.position) <= sz.radius) {
+        for (let i = 0; i < this.safeZones.length; i++) {
+            const sz = this.safeZones[i];
+            if (pos.distanceTo(sz.pos) <= sz.radius) {
                 return sz;
+            }
+        }
+        return null;
+    }
+
+    getNearbyNectar(pos) {
+        for (let i = 0; i < this.nectarSpots.length; i++) {
+            const n = this.nectarSpots[i];
+            if (n.replenished && pos.distanceTo(n.pos) <= n.radius) {
+                return n;
+            }
+        }
+        return null;
+    }
+
+    getNearbyNectarSpot(pos) {
+        return this.getNearbyNectar(pos);
+    }
+
+    getNearbyWater(pos) {
+        for (let i = 0; i < this.waterSpots.length; i++) {
+            const w = this.waterSpots[i];
+            if (pos.distanceTo(w.pos) <= w.radius) {
+                return w;
             }
         }
         return null;

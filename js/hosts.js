@@ -1,13 +1,13 @@
 /**
- * 4 Host Species — 3D Procedural Models & Anatomic Capillary Landing Zones
+ * 4 Host Species — 3D Procedural Models & Capillary Landing Targets
  * Three.js r128 Compatible
- * Through the Eyes of a Mosquito
+ * Through the Eyes of a Mosquito — Production Upgrade
  *
  * Species:
- * 1. HUMAN — High CO2, warm thermoreception, slow deep breathing, lethal swat
- * 2. DOG   — Strong body heat & skin odor, twitching ear, high blood yield
- * 3. CAT   — High agility, sudden lightning-fast pounce swat, stealthy
- * 4. BIRD  — Rapid head twitches, perching hops, lightweight target
+ * 1. HUMAN: High CO2 plume, slow breathing, lethal swat
+ * 2. DOG: Strong body heat & skin odor, twitching ears, high blood yield
+ * 3. CAT: High agility, stalking head turns, fast pounce swat
+ * 4. BIRD: Quick head twitches, perching hops, lightweight target
  */
 
 class Host {
@@ -17,24 +17,25 @@ class Host {
         this.id = options.id || `${type}_${Math.floor(Math.random() * 1000)}`;
         this.group = new THREE.Group();
         this.active = true;
-        this.alertness = options.initialAlertness || 0; // 0–100%
+        this.alertness = options.initialAlertness || 0;
         this.bloodAvailable = 100;
 
         this.landingZones = [];
         this.breatheMesh = null;
         this.breatheTime = Math.random() * 10;
-        this.currentActivity = 'RESTING'; // 'RESTING', 'TWITCHING', 'ALERT', 'SWATTING'
+        this.zoneId = options.zoneId || 'BEDROOM';
 
         const cfg = Host.CONFIG[type] || Host.CONFIG.HUMAN;
-        this.name          = options.name || cfg.name;
-        this.co2Strength   = cfg.co2;
-        this.heatStrength  = cfg.heat;
-        this.odorStrength  = cfg.odor;
-        this.movementRate  = cfg.movement;
-        this.swatDanger    = cfg.swatDanger;
-        this.bloodYield    = cfg.bloodYield;
-        this.color         = cfg.color;
-        this.speciesArea   = options.area || 'BEDROOM';
+        this.name         = options.name || cfg.name;
+        this.co2Strength  = cfg.co2;
+        this.heatStrength = cfg.heat;
+        this.odorStrength = cfg.odor;
+        this.movementRate = cfg.movement;
+        this.swatDanger   = cfg.swatDanger;
+        this.bloodYield   = cfg.bloodYield;
+        this.color        = cfg.color;
+
+        this._worldLzPos  = new THREE.Vector3(); // Scratch vector
 
         this._build();
         this.group.position.copy(position);
@@ -45,29 +46,27 @@ class Host {
     static get CONFIG() {
         return {
             HUMAN: { name: 'Sleeping Human', co2: 1.0,  heat: 1.0,  odor: 1.0,  movement: 0.25, swatDanger: 0.95, bloodYield: 100, color: 0xdf9b77 },
-            DOG:   { name: 'Sleeping Dog',   co2: 0.75, heat: 1.15, odor: 0.85, movement: 0.45, swatDanger: 0.60, bloodYield: 80,  color: 0xc29864 },
-            CAT:   { name: 'Alert Cat',      co2: 0.50, heat: 0.95, odor: 0.50, movement: 0.75, swatDanger: 0.85, bloodYield: 60,  color: 0x475569 },
-            BIRD:  { name: 'Caged Parakeet', co2: 0.35, heat: 1.25, odor: 0.30, movement: 0.85, swatDanger: 0.40, bloodYield: 35,  color: 0x10b981 },
+            DOG:   { name: 'Family Dog',     co2: 0.75, heat: 1.15, odor: 0.85, movement: 0.45, swatDanger: 0.60, bloodYield: 80,  color: 0xc29864 },
+            CAT:   { name: 'House Cat',      co2: 0.50, heat: 0.95, odor: 0.50, movement: 0.75, swatDanger: 0.85, bloodYield: 60,  color: 0x475569 },
+            BIRD:  { name: 'Garden Bird',    co2: 0.35, heat: 1.25, odor: 0.30, movement: 0.85, swatDanger: 0.40, bloodYield: 35,  color: 0x10b981 },
         };
     }
 
-    _mat(color, roughness = 0.8, metalness = 0.05) {
-        return new THREE.MeshStandardMaterial({ color, roughness, metalness });
+    _mat(color, roughness = 0.8) {
+        return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.05 });
     }
 
-    /**
-     * Helper to create capsule-like rounded cylinders in Three.js r128
-     */
     _createCapsuleMesh(radius, length, mat) {
         const group = new THREE.Group();
-        const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 12), mat);
+        const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 10), mat);
+        cylinder.frustumCulled = true;
         group.add(cylinder);
 
-        const capTop = new THREE.Mesh(new THREE.SphereGeometry(radius, 10, 8), mat);
+        const capTop = new THREE.Mesh(new THREE.SphereGeometry(radius, 8, 6), mat);
         capTop.position.y = length / 2;
         group.add(capTop);
 
-        const capBottom = new THREE.Mesh(new THREE.SphereGeometry(radius, 10, 8), mat);
+        const capBottom = new THREE.Mesh(new THREE.SphereGeometry(radius, 8, 6), mat);
         capBottom.position.y = -length / 2;
         group.add(capBottom);
 
@@ -85,240 +84,132 @@ class Host {
         const skinMat = this._mat(this.color, 0.75);
         const clothMat = this._mat(0x3b82f6, 0.85);
 
-        // Torso / Chest (Lying prone on bed)
+        // Torso / Chest
         const torso = this._createCapsuleMesh(0.7, 2.6, clothMat);
         torso.rotation.x = Math.PI / 2;
         torso.position.set(0, 0.85, 0);
         this.group.add(torso);
         this.breatheMesh = torso;
 
-        // Head with neck
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 12), skinMat);
+        // Head
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), skinMat);
         head.position.set(0, 1.1, 2.0);
         this.group.add(head);
 
-        // Pillow beneath head
-        const pillow = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.4, 1.6), this._mat(0xf8fafc, 0.9));
-        pillow.position.set(0, 0.7, 2.0);
-        this.group.add(pillow);
-
-        // Arms (Forearms exposed on sheet)
-        [-0.95, 0.95].forEach((x, idx) => {
-            const arm = this._createCapsuleMesh(0.24, 2.2, skinMat);
-            arm.rotation.x = Math.PI / 2;
-            arm.rotation.z = idx === 0 ? 0.2 : -0.2;
-            arm.position.set(x, 0.65, 0.4);
-            this.group.add(arm);
-        });
-
-        // Legs under sheet
-        [-0.42, 0.42].forEach(x => {
-            const leg = this._createCapsuleMesh(0.32, 2.6, clothMat);
-            leg.rotation.x = Math.PI / 2;
-            leg.position.set(x, 0.65, -2.2);
-            this.group.add(leg);
-
-            // Exposed ankle skin
-            const foot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.6), skinMat);
-            foot.position.set(x, 0.35, -3.8);
-            this.group.add(foot);
-        });
+        // Hair
+        const hair = new THREE.Mesh(new THREE.SphereGeometry(0.58, 10, 8), this._mat(0x1e1b18, 0.95));
+        hair.position.set(0, 1.25, 2.1);
+        hair.scale.set(1.0, 0.7, 1.0);
+        this.group.add(hair);
 
         // Capillary Landing Zones
-        this._addLandingZone(new THREE.Vector3(0.35, 1.25, 1.8), 0.6, 'Jugular Capillary (Neck)');
-        this._addLandingZone(new THREE.Vector3(-0.95, 0.85, 0.6), 0.5, 'Radial Vein (Forearm)');
-        this._addLandingZone(new THREE.Vector3(0.42, 0.55, -3.8), 0.5, 'Lateral Malleolus (Ankle)');
+        this._addLandingZone('Exposed Forearm Capillary', 0.8, 1.0, 0.5, 0.6);
+        this._addLandingZone('Neck Capillary', 0.0, 1.4, 1.6, 0.5);
+        this._addLandingZone('Ankle Vein Cluster', -0.5, 0.6, -1.8, 0.5);
     }
 
     _buildDog() {
         const furMat = this._mat(this.color, 0.9);
-        const noseMat = this._mat(0x18181b, 0.5);
 
-        // Torso curled on rug
-        const torso = this._createCapsuleMesh(0.55, 1.8, furMat);
-        torso.rotation.x = Math.PI / 2;
-        torso.rotation.z = 0.4;
-        torso.position.set(0, 0.55, 0);
-        this.group.add(torso);
-        this.breatheMesh = torso;
+        // Dog Body
+        const body = this._createCapsuleMesh(0.65, 2.2, furMat);
+        body.rotation.x = Math.PI / 2;
+        body.position.set(0, 0.7, 0);
+        this.group.add(body);
+        this.breatheMesh = body;
 
-        // Dog Head
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), furMat);
-        head.position.set(0.65, 0.7, 1.0);
+        // Head & Snout
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 10, 8), furMat);
+        head.position.set(0, 1.0, 1.5);
         this.group.add(head);
 
-        // Muzzle / Snout
-        const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.5, 10), furMat);
-        muzzle.rotation.x = Math.PI / 2;
-        muzzle.position.set(0.75, 0.6, 1.45);
-        this.group.add(muzzle);
+        const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 0.5, 8), furMat);
+        snout.rotation.x = Math.PI / 2;
+        snout.position.set(0, 0.9, 1.95);
+        this.group.add(snout);
 
-        // Nose tip
-        const nose = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), noseMat);
-        nose.position.set(0.75, 0.62, 1.72);
-        this.group.add(nose);
-
-        // Floppy Ears
-        [-0.25, 0.25].forEach(xOff => {
-            const ear = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.45, 0.25), furMat);
-            ear.position.set(0.65 + xOff, 0.75, 0.9);
-            ear.rotation.z = xOff < 0 ? 0.4 : -0.4;
-            this.group.add(ear);
-        });
-
-        // Tail curled
-        const tail = this._createCapsuleMesh(0.1, 0.9, furMat);
-        tail.position.set(-0.6, 0.4, -1.0);
-        tail.rotation.z = 1.1;
-        this.group.add(tail);
-
-        // Capillary Landing Zones (High blood flow, thin fur areas)
-        this._addLandingZone(new THREE.Vector3(0.5, 0.95, 0.95), 0.5, 'Inner Ear Capillaries');
-        this._addLandingZone(new THREE.Vector3(0.75, 0.72, 1.55), 0.4, 'Nasal Dermus');
-        this._addLandingZone(new THREE.Vector3(-0.2, 0.75, 0.2), 0.6, 'Abdominal Ventral Skin');
+        // Landing Zones
+        this._addLandingZone('Ear Flap Capillary', -0.4, 1.15, 1.4, 0.5);
+        this._addLandingZone('Inner Belly Warmth', 0.0, 0.6, 0.0, 0.6);
     }
 
     _buildCat() {
         const furMat = this._mat(this.color, 0.85);
-        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x84cc16, emissive: 0x3f6212, roughness: 0.2 });
 
-        // Sleek Torso (Crouched or upright resting)
-        const torso = this._createCapsuleMesh(0.35, 1.3, furMat);
-        torso.rotation.x = Math.PI / 2.3;
-        torso.position.set(0, 0.6, 0);
-        this.group.add(torso);
-        this.breatheMesh = torso;
+        // Slender Cat Body
+        const body = this._createCapsuleMesh(0.42, 1.6, furMat);
+        body.rotation.x = Math.PI / 2;
+        body.position.set(0, 0.5, 0);
+        this.group.add(body);
+        this.breatheMesh = body;
 
-        // Cat Head
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), furMat);
-        head.position.set(0, 1.05, 0.65);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), furMat);
+        head.position.set(0, 0.8, 1.1);
         this.group.add(head);
 
-        // Glowing Cat Eyes
-        [-0.12, 0.12].forEach(xOff => {
-            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), eyeMat);
-            eye.position.set(xOff, 1.12, 0.92);
-            this.group.add(eye);
-        });
-
-        // Pointed Triangular Ears
-        [-0.18, 0.18].forEach(xOff => {
-            const earGeo = new THREE.ConeGeometry(0.12, 0.26, 4);
-            const ear = new THREE.Mesh(earGeo, furMat);
-            ear.position.set(xOff, 1.4, 0.62);
-            ear.rotation.z = xOff < 0 ? 0.3 : -0.3;
-            this.group.add(ear);
-        });
-
-        // Cat Tail (Curled S-curve)
-        const tail = this._createCapsuleMesh(0.06, 1.1, furMat);
-        tail.position.set(0, 0.7, -0.85);
-        tail.rotation.x = -0.5;
-        tail.rotation.y = 0.3;
-        this.group.add(tail);
-
-        // Capillary Landing Zones
-        this._addLandingZone(new THREE.Vector3(-0.16, 1.42, 0.64), 0.45, 'Cat Pinna / Ear Flap');
-        this._addLandingZone(new THREE.Vector3(0, 0.95, 0.88), 0.35, 'Whisker Pad Dermus');
+        // Landing Zones
+        this._addLandingZone('Ear Tip Capillary', -0.22, 1.15, 1.1, 0.4);
+        this._addLandingZone('Throat Soft Tissue', 0.0, 0.65, 0.8, 0.5);
     }
 
     _buildBird() {
         const featherMat = this._mat(this.color, 0.8);
-        const beakMat    = this._mat(0xf59e0b, 0.4);
 
-        // Bird Body (Compact egg shape)
-        const bodyGeo = new THREE.SphereGeometry(0.35, 10, 8);
-        const body = new THREE.Mesh(bodyGeo, featherMat);
-        body.scale.set(0.8, 1.1, 1.2);
-        body.position.set(0, 0.55, 0);
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), featherMat);
+        body.position.set(0, 0.45, 0);
         this.group.add(body);
         this.breatheMesh = body;
 
-        // Head
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), featherMat);
-        head.position.set(0, 0.95, 0.25);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), featherMat);
+        head.position.set(0, 0.72, 0.22);
         this.group.add(head);
 
-        // Beak
-        const beak = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 6), beakMat);
-        beak.rotation.x = Math.PI / 2;
-        beak.position.set(0, 0.92, 0.46);
-        this.group.add(beak);
-
-        // Tail Feathers
-        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.04, 0.7), this._mat(0x047857, 0.9));
-        tail.position.set(0, 0.45, -0.65);
-        tail.rotation.x = -0.3;
-        this.group.add(tail);
-
-        // Wooden Perch
-        const perch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.0, 8), this._mat(0x78350f, 0.8));
-        perch.rotation.z = Math.PI / 2;
-        perch.position.set(0, 0.15, 0);
-        this.group.add(perch);
-
-        // Capillary Landing Zones
-        this._addLandingZone(new THREE.Vector3(0, 1.15, 0.15), 0.35, 'Cranial Bare Patch');
-        this._addLandingZone(new THREE.Vector3(0.12, 0.22, 0.05), 0.3, 'Tarsus / Bird Leg Skin');
+        this._addLandingZone('Bare Leg Skin', 0.0, 0.15, 0.0, 0.35);
     }
 
-    _addLandingZone(relativePos, radius, name) {
-        // Invisible trigger sphere + pulsing glowing target ring
-        const ringGeo = new THREE.RingGeometry(radius * 0.4, radius * 0.6, 16);
+    _addLandingZone(name, rx, ry, rz, radius) {
+        const ringGeo = new THREE.RingGeometry(radius * 0.4, radius * 0.6, 12);
         const ringMat = new THREE.MeshBasicMaterial({
-            color: 0xff1744,
+            color: 0xef4444,
+            side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.65,
-            side: THREE.DoubleSide
+            opacity: 0.65
         });
         const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-        ringMesh.position.copy(relativePos);
         ringMesh.rotation.x = -Math.PI / 2;
+        ringMesh.position.set(rx, ry + 0.04, rz);
         this.group.add(ringMesh);
 
-        this.landingZones.push({
-            relativePos,
-            radius,
+        const lzObj = {
             name,
+            relPos: new THREE.Vector3(rx, ry, rz),
+            radius,
             ringMesh,
-            getWorldPosition: () => {
-                const wp = new THREE.Vector3();
-                ringMesh.getWorldPosition(wp);
-                return wp;
-            }
-        });
+            getWorldPosition: () => this.getLandingZoneWorldPos(lzObj)
+        };
+        this.landingZones.push(lzObj);
+    }
+
+    getLandingZoneWorldPos(lz) {
+        this._worldLzPos.copy(lz.relPos);
+        this._worldLzPos.applyQuaternion(this.group.quaternion);
+        this._worldLzPos.add(this.group.position);
+        return this._worldLzPos;
     }
 
     update(dt) {
-        this.breatheTime += dt * 1.5;
+        this.breatheTime += dt * 1.8;
 
-        // 1. Rhythmic breathing oscillation
         if (this.breatheMesh) {
-            const bRate = this.type === 'HUMAN' ? 1.0 : (this.type === 'DOG' ? 1.6 : 2.2);
-            const scaleOffset = Math.sin(this.breatheTime * bRate) * 0.035;
-            this.breatheMesh.scale.set(1 + scaleOffset, 1 + scaleOffset, 1 + scaleOffset);
+            const scaleY = 1.0 + Math.sin(this.breatheTime) * 0.035;
+            this.breatheMesh.scale.set(1.0, scaleY, 1.0);
         }
 
-        // 2. Pulse landing zone rings
-        const t = performance.now() * 0.003;
-        this.landingZones.forEach((lz, idx) => {
-            if (lz.ringMesh) {
-                const pulse = 0.5 + Math.sin(t * 3 + idx) * 0.3;
-                lz.ringMesh.material.opacity = pulse;
-                const s = 1.0 + Math.sin(t * 3 + idx) * 0.15;
-                lz.ringMesh.scale.set(s, s, s);
-            }
-        });
-
-        // 3. Alertness natural decay if player far away
-        if (this.alertness > 0) {
-            this.alertness = Math.max(0, this.alertness - dt * 2.5);
+        const ringPulse = 0.4 + Math.sin(this.breatheTime * 2.5) * 0.3;
+        for (let i = 0; i < this.landingZones.length; i++) {
+            const lz = this.landingZones[i];
+            if (lz.ringMesh) lz.ringMesh.material.opacity = ringPulse;
         }
-    }
-
-    dispose() {
-        this.active = false;
-        this.scene.remove(this.group);
     }
 }
 

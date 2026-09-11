@@ -101,6 +101,13 @@ class EmotionSystem {
         this.stress   = Math.max(0, this.stress - 25);
     }
 
+    onNectarFeed(amount = 35) {
+        this.energy   = Math.min(100, this.energy + amount);
+        this.hunger   = Math.max(0, this.hunger - amount * 0.5);
+        this.calmness = Math.min(100, this.calmness + 20);
+        this.relief   = 70;
+    }
+
     onSwatNearMiss() {
         this.fear    = Math.min(100, this.fear + 40);
         this.stress  = Math.min(100, this.stress + 30);

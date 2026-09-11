@@ -16,6 +16,25 @@
     <!-- Multispectral Perception Scanline / Thermal Wireframe Overlay -->
     <div id="perception-hud-overlay" class="hidden"></div>
 
+    <!-- Dynamic Gameplay Crosshair -->
+    <div id="hud-crosshair" class="crosshair-normal"></div>
+
+    <!-- Genuine Staged Loading Screen Overlay -->
+    <div id="overlay-loading" class="loading-backdrop">
+        <div class="loading-box">
+            <div class="loading-icon">🦟</div>
+            <h1 class="loading-title">THROUGH THE EYES OF A MOSQUITO</h1>
+            <p class="loading-tagline">“The world is enormous when you're tiny.”</p>
+            <div class="loading-bar-container">
+                <div id="loading-bar-fill" class="loading-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div class="loading-status-row">
+                <span id="loading-stage-text">Initializing 3D simulation engine...</span>
+                <span id="loading-bar-pct">0%</span>
+            </div>
+        </div>
+    </div>
+
     <!-- HUD Glass Interface Layer -->
     <div id="hud-overlay">
         <!-- Top Row -->
@@ -55,8 +74,9 @@
             <!-- Right: 2D Radar Minimap & Quick Actions -->
             <div class="glass-panel minimap-card hud-interactive">
                 <div style="font-size:10px; color:#94a3b8; font-weight:700; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; gap:4px; width:100%;">
-                    <span>BEDROOM RADAR</span>
+                    <span>TACTICAL RADAR</span>
                     <div style="display:flex; gap:4px;">
+                        <button id="btn-hud-cam" class="hud-mini-btn" title="Toggle 1st/3rd Person Cam [V]">📷 CAM [V]</button>
                         <button id="btn-hud-nightvision" class="hud-mini-btn" title="Toggle Night Vision Boost [N]">🌙 NIGHT [N]</button>
                         <button id="btn-hud-perception" class="hud-mini-btn" title="Toggle Perception Mode [T]">👁 SENSES [T]</button>
                         <button id="btn-hud-mute" class="hud-mini-btn" title="Mute/Unmute Audio">🔊</button>
@@ -103,7 +123,7 @@
 
     <!-- Precision Feeding Minigame Interface Overlay -->
     <div id="feeding-overlay-panel" class="glass-panel feeding-card hidden">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
             <div style="font-size:12px; font-weight:800; color:#ef4444; letter-spacing:1px;">🩸 PRECISION FEEDING</div>
             <div style="font-size:10px; color:#94a3b8;">[E / RMB] Detach</div>
         </div>
@@ -206,14 +226,18 @@
         </div>
     </div>
 
-    <!-- Debug Telemetry Overlay (F3) -->
+    <!-- Performance Debug Telemetry Overlay (F3) -->
     <div id="overlay-debug" class="hidden">
-        <div><strong>DEBUG TELEMETRY [F3]</strong></div>
-        <div>FPS: <span id="dbg-fps">60</span></div>
+        <div style="font-weight:800; color:#38bdf8; margin-bottom:4px;">DEBUG TELEMETRY [F3]</div>
+        <div>FPS: <span id="dbg-fps">60</span> (<span id="dbg-ms">16.6</span> ms)</div>
+        <div>DRAWCALLS: <span id="dbg-calls">0</span> | POLYS: <span id="dbg-polys">0</span></div>
+        <div>MEMORY: <span id="dbg-mem">0G / 0T</span></div>
         <div>POS: <span id="dbg-pos">0, 0, 0</span></div>
         <div>VEL: <span id="dbg-vel">0 m/s</span></div>
-        <div>STATE: <span id="dbg-state">SEARCHING</span></div>
-        <div style="font-size:10px; color:#94a3b8; margin-top:4px;">[V] Cam Toggle | [N] Night Boost | [T] Perception</div>
+        <div>ZONE: <span id="dbg-zone">Bedroom</span></div>
+        <div>STATE: <span id="dbg-state">SEARCHING</span> | NPCS: <span id="dbg-npc">4</span></div>
+        <div>QUALITY: <span id="dbg-quality">AUTO</span> | AI: <span id="dbg-llm">OFFLINE</span></div>
+        <div style="font-size:10px; color:#94a3b8; margin-top:4px;">[V] Cam Mode | [N] Night Boost | [T] Perception</div>
     </div>
 
     <!-- Main Menu Modal -->
@@ -224,7 +248,7 @@
             <p class="menu-tagline">“The world is enormous when you're tiny.”</p>
 
             <div class="menu-btn-stack">
-                <button id="btn-start-story" class="btn-action btn-primary-action">STORY MODE (10 MISSIONS)</button>
+                <button id="btn-start-story" class="btn-action btn-primary-action">STORY MODE (15 MISSIONS)</button>
                 <button id="btn-start-survival" class="btn-action">SURVIVAL CHALLENGE</button>
                 <button id="btn-start-free" class="btn-action">FREE SIMULATION</button>
                 <button id="btn-start-sandbox" class="btn-action">SANDBOX EXPERIMENT</button>
@@ -300,6 +324,15 @@
                 <div class="learn-h3">⚡ 4. Mechanoreception: Johnston's Organ</div>
                 <div class="learn-p">Johnston's organ at the base of the antennae registers acoustic wing beat frequencies and air displacement shockwaves from approaching swat attacks in under 30 milliseconds.</div>
             </div>
+
+            <!-- AI Scenario Generator Card -->
+            <div class="learn-box" style="border-color: rgba(56, 189, 248, 0.4); background: rgba(30, 41, 59, 0.4);">
+                <div class="learn-h3">🤖 AI Scenario Generator (Entomological Director)</div>
+                <div class="learn-p">Generate dynamic, ecologically realistic flight missions powered by the offline/online knowledge base.</div>
+                <button id="btn-generate-scenario" class="btn-action" style="margin: 8px 0; width: 100%;">GENERATE NEW SCENARIO</button>
+                <div id="scenario-output-text" style="font-size: 11px; color: #cbd5e1; background: rgba(15,23,42,0.6); padding: 8px; border-radius: 6px;">Click button above to generate a unique ecological scenario.</div>
+            </div>
+
             <div class="learn-disclaimer-highlight">
                 <strong>Important Scientific Disclaimer:</strong><br>
                 “The emotional states shown in this simulation (Hunger, Curiosity, Fear, Stress, Urgency, Alertness, Relief, Calmness) are fictional interpretations designed to help players understand mosquito behavior. They do not represent proven human-like emotions or conscious experiences in mosquitoes.”
@@ -339,6 +372,23 @@
                 </select>
             </div>
             <div class="setting-row">
+                <label for="setting-graphics-quality">Graphics Quality</label>
+                <select id="setting-graphics-quality" class="setting-select">
+                    <option value="AUTO" selected>AUTO (Targeting 60+ FPS)</option>
+                    <option value="ULTRA">ULTRA (Full Shadows, 2x Resolution)</option>
+                    <option value="HIGH">HIGH (PCF Shadows, 1.5x Resolution)</option>
+                    <option value="MEDIUM">MEDIUM (Basic Shadows, 1x Resolution)</option>
+                    <option value="LOW">LOW (Shadows Off, Maximum Performance)</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label for="setting-camera-fov">Field of View (FOV)</label>
+                <input id="setting-camera-fov" type="range" min="60" max="100" value="75" class="setting-slider">
+            </div>
+            <div class="setting-row">
+                <label><input id="setting-cam-shake" type="checkbox" checked style="margin-right:8px;">Camera Shake on Near Swats</label>
+            </div>
+            <div class="setting-row">
                 <label for="setting-sound-vol">Sound Effects &amp; Drone</label>
                 <input id="setting-sound-vol" type="range" min="0" max="100" value="60" class="setting-slider">
             </div>
@@ -353,6 +403,28 @@
             <div class="setting-row">
                 <label><input id="setting-mute-check" type="checkbox" style="margin-right:8px;">Mute Audio</label>
             </div>
+
+            <!-- AI Director Settings -->
+            <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; margin-top:10px;">
+                <div style="font-size:11px; font-weight:800; color:#38bdf8; margin-bottom:6px;">BIOLOGY AI / LLM DIRECTOR</div>
+                <div class="setting-row">
+                    <label for="setting-ai-provider">Provider</label>
+                    <select id="setting-ai-provider" class="setting-select">
+                        <option value="OFFLINE" selected>OFFLINE Entomological Knowledge Base</option>
+                        <option value="GEMINI">Google Gemini API (gemini-2.5-flash)</option>
+                        <option value="OPENAI">OpenAI API (gpt-4o-mini)</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label for="setting-ai-key">API Key (Optional)</label>
+                    <input id="setting-ai-key" type="password" placeholder="Enter API key for live LLM" class="setting-select" style="font-family: monospace;">
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                    <button id="btn-test-ai-key" type="button" class="hud-mini-btn" style="padding:6px 12px;">Test Connection</button>
+                    <span id="setting-ai-status" style="font-size:10px; color:#94a3b8;">Offline KB ready</span>
+                </div>
+            </div>
+
             <button id="btn-save-settings" class="btn-action btn-primary-action" style="width:100%; margin-top:14px;">SAVE &amp; APPLY</button>
         </div>
     </div>
@@ -402,7 +474,7 @@
     <!-- UI Notification Toast -->
     <div id="ui-toast" class="ui-toast hidden">Notification</div>
 
-    <!-- Strict 16-File Modular Dependency Order -->
+    <!-- Strict 17-File Modular Dependency Order -->
     <script src="js/storage.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/emotions.js"></script>
@@ -414,6 +486,7 @@
     <script src="js/sensors.js"></script>
     <script src="js/feeding.js"></script>
     <script src="js/missions.js"></script>
+    <script src="js/aiDirector.js"></script>
     <script src="js/player.js"></script>
     <script src="js/sandbox.js"></script>
     <script src="js/ui.js"></script>

@@ -1,29 +1,37 @@
 /**
- * LocalStorage Manager
- * Through the Eyes of a Mosquito
+ * Storage & Progression Persistence Manager
+ * Through the Eyes of a Mosquito — Production Upgrade
  *
- * Keys:
- * - bestRuns (top 10 run records)
- * - settings (difficulty, volumes, muted, sensitivity)
- * - missionProgress (level & completed list)
- * - highScore (numerical best score)
+ * Persists:
+ * - Simulation & Graphics Settings (Quality, Audio, Camera, AI configuration)
+ * - Leaderboard / Best Runs (Top 10 records)
+ * - Mission Progression (Current level & completed list)
+ * - Achievements Unlocked
+ * - World Zone Discoveries
+ * - Lifetime Statistics
  */
 
 class StorageManager {
     constructor() {
         this.KEYS = {
-            BEST_RUNS: 'mosquito_best_runs',
-            SETTINGS:  'mosquito_settings',
-            MISSIONS:  'mosquito_mission_progress',
-            HIGH_SCORE:'mosquito_high_score'
+            SETTINGS:      'mosquito_prod_settings',
+            BEST_RUNS:     'mosquito_prod_best_runs',
+            MISSIONS:      'mosquito_prod_missions',
+            ACHIEVEMENTS:  'mosquito_prod_achievements',
+            DISCOVERIES:   'mosquito_prod_discoveries',
+            HIGH_SCORE:    'mosquito_prod_high_score',
+            STATISTICS:    'mosquito_prod_stats'
         };
     }
 
     // --- Settings ---
     getSettings() {
         try {
-            return JSON.parse(localStorage.getItem(this.KEYS.SETTINGS)) || this._defaultSettings();
-        } catch {
+            const raw = localStorage.getItem(this.KEYS.SETTINGS);
+            if (!raw) return this._defaultSettings();
+            return Object.assign(this._defaultSettings(), JSON.parse(raw));
+        } catch (e) {
+            console.warn('StorageManager: Failed to load settings, using defaults.', e);
             return this._defaultSettings();
         }
     }
@@ -31,37 +39,61 @@ class StorageManager {
     saveSettings(settings) {
         try {
             localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(settings));
-        } catch {}
+            return true;
+        } catch (e) {
+            console.warn('StorageManager: Failed to save settings.', e);
+            return false;
+        }
     }
 
     _defaultSettings() {
         return {
-            difficulty: 'NORMAL',
-            soundVolume: 0.6,
-            musicVolume: 0.4,
+            difficulty: 'NORMAL',          // EASY, NORMAL, HARD
+            graphicsQuality: 'AUTO',       // LOW, MEDIUM, HIGH, ULTRA, AUTO
+            soundVolume: 0.6,              // 0.0 - 1.0
+            musicVolume: 0.4,              // 0.0 - 1.0
             muted: false,
-            mouseSensitivity: 1.0
+            mouseSensitivity: 1.0,         // 0.2 - 2.5
+            fov: 75,                       // 60 - 100
+            cameraSmoothing: 0.85,         // 0.1 - 1.0
+            cameraShake: true,             // bool
+            flightAssistance: true,        // bool
+            aiProvider: 'LOCAL',           // LOCAL, GEMINI, OPENAI
+            aiApiKey: '',
+            aiModel: 'gemini-1.5-flash'
         };
     }
 
-    // --- Best Runs Leaderboard (Top 10) ---
+    // --- Best Runs (Top 10 Leaderboard) ---
     getBestRuns() {
         try {
-            return JSON.parse(localStorage.getItem(this.KEYS.BEST_RUNS)) || [];
+            const raw = localStorage.getItem(this.KEYS.BEST_RUNS);
+            return raw ? JSON.parse(raw) : [];
         } catch {
             return [];
         }
     }
 
-    saveRun(runRecord) {
+    saveRun(record) {
         try {
-            let runs = this.getBestRuns();
-            runs.push(runRecord);
+            const runs = this.getBestRuns();
+            runs.push({
+                date: record.date || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                survivalTime: record.survivalTime || '00:00',
+                survivalSeconds: record.survivalSeconds || 0,
+                score: record.score || 0,
+                rating: record.rating || 'B',
+                successfulFeeds: record.successfulFeeds || 0,
+                fedSpecies: record.fedSpecies || [],
+                distanceFlown: Math.round(record.distanceTravelled || 0)
+            });
             runs.sort((a, b) => (b.score || 0) - (a.score || 0));
-            runs = runs.slice(0, 10);
-            localStorage.setItem(this.KEYS.BEST_RUNS, JSON.stringify(runs));
-            return runs;
-        } catch {
+            const top10 = runs.slice(0, 10);
+            localStorage.setItem(this.KEYS.BEST_RUNS, JSON.stringify(top10));
+            this.saveHighScore(record.score || 0);
+            return top10;
+        } catch (e) {
+            console.warn('StorageManager: Failed to save run.', e);
             return [];
         }
     }
@@ -69,28 +101,16 @@ class StorageManager {
     clearLeaderboard() {
         try {
             localStorage.removeItem(this.KEYS.BEST_RUNS);
-        } catch {}
-    }
-
-    // --- Mission Progress ---
-    getMissionProgress() {
-        try {
-            return JSON.parse(localStorage.getItem(this.KEYS.MISSIONS)) || { currentLevel: 1, completedLevels: [] };
+            return true;
         } catch {
-            return { currentLevel: 1, completedLevels: [] };
+            return false;
         }
-    }
-
-    saveMissionProgress(progress) {
-        try {
-            localStorage.setItem(this.KEYS.MISSIONS, JSON.stringify(progress));
-        } catch {}
     }
 
     // --- High Score ---
     getHighScore() {
         try {
-            return parseInt(localStorage.getItem(this.KEYS.HIGH_SCORE), 10) || 0;
+            return parseInt(localStorage.getItem(this.KEYS.HIGH_SCORE) || '0', 10);
         } catch {
             return 0;
         }
@@ -109,26 +129,89 @@ class StorageManager {
         }
     }
 
-    // --- Score Calculation ---
-    calculateScore(stats) {
-        const timeBonus    = (stats.survivalSeconds || 0) * 3;
-        const feedBonus    = (stats.successfulFeeds || 0) * 600;
-        const escapeBonus  = (stats.successfulEscapes || 0) * 350;
-        const speciesBonus = ((stats.fedSpecies ? stats.fedSpecies.length : 0)) * 400;
-        const landingBonus = (stats.successfulLandings || 0) * 200;
-        const distBonus    = Math.round((stats.distanceTravelled || 0) * 0.5);
+    // --- Mission Progression ---
+    getMissionProgress() {
+        try {
+            const raw = localStorage.getItem(this.KEYS.MISSIONS);
+            return raw ? JSON.parse(raw) : { currentLevel: 1, completedLevels: [] };
+        } catch {
+            return { currentLevel: 1, completedLevels: [] };
+        }
+    }
 
-        const score = Math.max(0, timeBonus + feedBonus + escapeBonus + speciesBonus + landingBonus + distBonus);
+    saveMissionProgress(prog) {
+        try {
+            localStorage.setItem(this.KEYS.MISSIONS, JSON.stringify(prog));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    // --- Achievements ---
+    getAchievements() {
+        try {
+            const raw = localStorage.getItem(this.KEYS.ACHIEVEMENTS);
+            return raw ? JSON.parse(raw) : {};
+        } catch {
+            return {};
+        }
+    }
+
+    unlockAchievement(id) {
+        try {
+            const ach = this.getAchievements();
+            if (!ach[id]) {
+                ach[id] = { unlockedAt: Date.now() };
+                localStorage.setItem(this.KEYS.ACHIEVEMENTS, JSON.stringify(ach));
+                return true;
+            }
+            return false;
+        } catch {
+            return false;
+        }
+    }
+
+    // --- World Discoveries ---
+    getDiscoveries() {
+        try {
+            const raw = localStorage.getItem(this.KEYS.DISCOVERIES);
+            return raw ? JSON.parse(raw) : ['BEDROOM'];
+        } catch {
+            return ['BEDROOM'];
+        }
+    }
+
+    saveDiscovery(zoneId) {
+        try {
+            const discs = new Set(this.getDiscoveries());
+            discs.add(zoneId);
+            localStorage.setItem(this.KEYS.DISCOVERIES, JSON.stringify(Array.from(discs)));
+        } catch {}
+    }
+
+    // --- Score Calculator ---
+    calculateScore(stats) {
+        const timeBonus     = Math.round((stats.survivalSeconds || 0) * 4);
+        const feedBonus     = (stats.successfulFeeds || 0) * 800;
+        const escapeBonus   = (stats.successfulEscapes || 0) * 450;
+        const speciesBonus  = (stats.fedSpecies ? stats.fedSpecies.length : 0) * 600;
+        const landingBonus  = (stats.successfulLandings || 0) * 300;
+        const zoneBonus     = (stats.zonesDiscovered ? stats.zonesDiscovered.length : 1) * 350;
+        const distBonus     = Math.round((stats.distanceTravelled || 0) * 0.5);
+
+        const totalScore = Math.max(0, timeBonus + feedBonus + escapeBonus + speciesBonus + landingBonus + zoneBonus + distBonus);
 
         let rating = 'F';
-        if (score >= 6000) rating = 'S (★★★★★)';
-        else if (score >= 4000) rating = 'A (★★★★☆)';
-        else if (score >= 2500) rating = 'B (★★★☆☆)';
-        else if (score >= 1200) rating = 'C (★★☆☆☆)';
-        else if (score >= 500)  rating = 'D (★☆☆☆☆)';
+        if (totalScore >= 8000) rating = 'S (★★★★★)';
+        else if (totalScore >= 5500) rating = 'A (★★★★☆)';
+        else if (totalScore >= 3500) rating = 'B (★★★☆☆)';
+        else if (totalScore >= 1800) rating = 'C (★★☆☆☆)';
+        else if (totalScore >= 600)  rating = 'D (★☆☆☆☆)';
 
-        return { score, rating };
+        return { score: totalScore, rating };
     }
 }
 
+window.StorageManager = StorageManager;
 window.storageManager = new StorageManager();
