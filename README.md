@@ -2,96 +2,97 @@
 
 
 
-# [Project Name] 🎯
+🦟Through The Eyes Of a Mosquito👀
 
 
-## Basic Details
-### Team Name: [Name]
+Through the Eyes of a Mosquito is an asynchronous, multi-rate 3D biological flight simulation engineered with Three.js and vanilla ES modules. The system places the player in the microscopic, high-velocity perspective of a female mosquito navigating a multi-zone domestic environment.
+Team Name: Veloce
+
+ # Team Members
+ 
+- Team Lead: Muhammad Ibrahim - Collage of Engineering Perumon
+- Member 2: Muhammad Saffan -  Collage of Engineering Perumon
 
 
-### Team Members
-- Team Lead: [Name] - [College]
-- Member 2: [Name] - [College]
-- Member 3: [Name] - [College]
+# Project Description:
+A 3D simulation placing players in the microscopic perspective of a female mosquito navigating a multi-room domestic environment. The system features real-time flight physics, compound-eye sensory modes (thermal, $CO_2$, odor), and local host behavioral AI to simulate host tracking, landing, and capillary feeding at 60+ FPS.
 
-### Project Description
-[2-3 lines about what your project does]
+# The Problem (that doesn't exist):
+Mosquitoes must calculate micro-scale aerodynamic drag, track shifting carbon dioxide plumes in complete darkness, identify exposed capillaries, and evade lethal threats with zero formal navigation training or biological recognition from the organisms they feed on.
 
-### The Problem (that doesn't exist)
-[What ridiculous problem are you solving?]
-
-### The Solution (that nobody asked for)
-[How are you solving it? Keep it fun!]
+# The Solution:
+A 3D indie biological flight simulator that lets human players experience domestic survival from an insect's perspective, featuring multi-spectrum sensory shaders, realistic inertia, dynamic host swat AI, and a high-stakes feeding stabilization system.
 
 ## Technical Details
-### Technologies/Components Used
-For Software:
-- [Languages used]
-- [Frameworks used]
-- [Libraries used]
-- [Tools used]
+# Technologies/Components Used
 
-For Hardware:
-- [List main components]
-- [List specifications]
-- [List tools required]
+Languages used: JavaScript (ES6+ Modules), GLSL (Fragment & Vertex Shaders), HTML5, CSS3
+Frameworks used: None (Vanilla modular architecture)
+Libraries used: Three.js (WebGL 3D Rendering), Web Audio API (Spatial audio & procedural wing buzz)
+Tools used: Vite, VS Code, Blender, Chrome DevTools
 
-### Implementation
-For Software:
+
+## Implementation
 # Installation
-[commands]
+
+Bash
+git clone https://github.com/veloce-team/through-the-eyes-of-a-mosquito.git
+cd through-the-eyes-of-a-mosquito
+npm install
 
 # Run
-[commands]
+BasH
+npm run dev
 
-### Project Documentation
-For Software:
+# Project Documentation
+For Software: https://muhammadsaffff.github.io/Veloce/
 
-# Screenshots (Add at least 3)
-![Screenshot1](Add screenshot 1 here with proper name)
-*Add caption explaining what this shows*
+# Screenshots
+<img width="1907" height="917" alt="Screenshot 2026-09-12 040126" src="https://github.com/user-attachments/assets/370b7bd3-b900-4800-a6fd-a1c64e5197d1" />
+Sensory perception mode showing CO2 convection trails, thermal hot spots on the host, and environmental odor gradients.
 
-![Screenshot2](Add screenshot 2 here with proper name)
-*Add caption explaining what this shows*
+<img width="1915" height="923" alt="Screenshot 2026-09-12 041143" src="https://github.com/user-attachments/assets/f2094f49-ace5-476d-9437-7413aa58d431" />
+Active feeding HUD tracking accuracy, landing stability, blood intake progress, and host detection risk.
 
-![Screenshot3](Add screenshot 3 here with proper name)
-*Add caption explaining what this shows*
+<img width="1905" height="896" alt="Screenshot 2026-09-12 041224" src="https://github.com/user-attachments/assets/560d1fb8-afc2-445b-9a28-e982eb3dab9a" />
+First-person flight navigation through the domestic environment showing furniture collision boundaries and dynamic lighting.
+
 
 # Diagrams
-![Workflow](Add your workflow/architecture diagram here)
-*Add caption explaining your workflow*
 
-For Hardware:
+┌─────────────────────────────────────────────────────────┐
+│               CENTRAL ENGINE LOOP (rAF)                 │
+└────────────────────────────┬────────────────────────────┘
+                             │
+     ┌───────────────────────┼────────────────────────┐
+     ▼ (60 FPS)              ▼ (30 FPS)               ▼ (10-15 FPS)
+┌────────────────┐      ┌─────────────────┐      ┌──────────────────┐
+│ Flight Physics │      │  Host Local AI  │      │ Sensory Shaders  │
+│ Camera Spring  │      │  State Machines │      │ Minimap Blitting │
+│ AABB Collision │      │  Reaction Logic │      │ Zone Streaming   │
+└────────┬───────┘      └────────┬────────┘      └────────┬─────────┘
+         │                       │                        │
+         └───────────────────────┼────────────────────────┘
+                                 ▼
+                      ┌──────────────────────┐
+                      │ Three.js / WebGL     │
+                      │ Instanced Draw Calls │
+                      └──────────────────────┘
+Decoupled multi-rate game loop isolating rendering, flight physics, local AI, and sensory calculation frequencies.
 
-# Schematic & Circuit
-![Circuit](Add your circuit diagram here)
-*Add caption explaining connections*
-
-![Schematic](Add your schematic diagram here)
-*Add caption explaining the schematic*
-
-# Build Photos
-![Components](Add photo of your components here)
-*List out all components shown*
-
-![Build](Add photos of build process here)
-*Explain the build steps*
-
-![Final](Add photo of final product here)
-*Explain the final build*
-
-### Project Demo
+## Project Demo
 # Video
-[Add your demo video link here]
-*Explain what the video demonstrates*
 
-# Additional Demos
-[Add any extra demo materials/links]
+Project Demo Video Link: https://muhammadsaffff.github.io/Veloce/
 
-## Team Contributions
-- [Name 1]: [Specific contributions]
-- [Name 2]: [Specific contributions]
-- [Name 3]: [Specific contributions]
+Demonstrates smooth 60 FPS flight, switching between perception modes, host approach, precision landing, feeding mechanics, and swat evasion.
+
+
+
+Team Contributions
+Muhammad Ibrahim: Three.js rendering engine, GLSL custom sensory shaders, aerodynamic micro-flight physics, and zero-allocation object pools.
+
+Muhammad Saffan: Local host behavioral AI finite state machines, spatial zone streaming, UI/HUD state machine, and Web Audio API integration.
 
 ---
 Made with ❤️ at TinkerHub Useless Projects 
