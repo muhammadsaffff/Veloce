@@ -82,9 +82,7 @@ First-person flight navigation through the domestic environment showing furnitur
 Decoupled multi-rate game loop isolating rendering, flight physics, local AI, and sensory calculation frequencies.
 
 ## Project Demo
-# Video
-
-Project Demo Video Link: https://muhammadsaffff.github.io/Veloce/
+PROJECT: https://muhammadsaffff.github.io/Veloce/
 
 Demonstrates smooth 60 FPS flight, switching between perception modes, host approach, precision landing, feeding mechanics, and swat evasion.
 
