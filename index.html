@@ -1,1 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🦟 Through the Eyes of a Mosquito — 3D Simulation Game</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Three.js r128 via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="webgl-canvas"></canvas>
+    </div>
 
+    <!-- Multispectral Perception Scanline / Thermal Wireframe Overlay -->
+    <div id="perception-hud-overlay" class="hidden"></div>
+
+    <!-- HUD Glass Interface Layer -->
+    <div id="hud-overlay">
+        <!-- Top Row -->
+        <div class="hud-top-row">
+            <!-- Left: Vitals & Tracking Telemetry Card -->
+            <div class="glass-panel vitals-card hud-interactive">
+                <div class="hud-title-bar">
+                    <span>MOSQUITO TELEMETRY</span>
+                    <span id="hud-val-area" style="color:#38bdf8; font-weight:800;">🛏️ Bedroom</span>
+                </div>
+
+                <div class="vital-bar-group">
+                    <div class="vital-lbl"><span style="color:#00e5ff;">ENERGY</span><span id="val-energy">100%</span></div>
+                    <div class="vital-bar-bg"><div id="bar-energy" class="vital-fill fill-energy" style="width:100%;"></div></div>
+                </div>
+                <div class="vital-bar-group">
+                    <div class="vital-lbl"><span style="color:#f59e0b;">HUNGER</span><span id="val-hunger">70%</span></div>
+                    <div class="vital-bar-bg"><div id="bar-hunger" class="vital-fill fill-hunger" style="width:70%;"></div></div>
+                </div>
+                <div class="vital-bar-group">
+                    <div class="vital-lbl"><span style="color:#f87171;">STRESS</span><span id="val-stress">15%</span></div>
+                    <div class="vital-bar-bg"><div id="bar-stress" class="vital-fill fill-stress" style="width:15%;"></div></div>
+                </div>
+                <div class="vital-bar-group">
+                    <div class="vital-lbl"><span style="color:#c084fc;">FEAR</span><span id="val-fear">10%</span></div>
+                    <div class="vital-bar-bg"><div id="bar-fear" class="vital-fill fill-fear" style="width:10%;"></div></div>
+                </div>
+
+                <div class="hud-info-grid">
+                    <span>STATE: <strong id="hud-val-state" style="color:#38bdf8;">SEARCHING</strong></span>
+                    <span>TARGET: <strong id="hud-val-target">None</strong></span>
+                    <span>DIST: <strong id="hud-val-distance">--</strong></span>
+                    <span>RISK: <strong id="hud-val-risk" style="color:#00e676;">LOW</strong></span>
+                </div>
+            </div>
+
+            <!-- Right: 2D Radar Minimap & Quick Actions -->
+            <div class="glass-panel minimap-card hud-interactive">
+                <div style="font-size:10px; color:#94a3b8; font-weight:700; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; gap:4px; width:100%;">
+                    <span>BEDROOM RADAR</span>
+                    <div style="display:flex; gap:4px;">
+                        <button id="btn-hud-nightvision" class="hud-mini-btn" title="Toggle Night Vision Boost [N]">🌙 NIGHT [N]</button>
+                        <button id="btn-hud-perception" class="hud-mini-btn" title="Toggle Perception Mode [T]">👁 SENSES [T]</button>
+                        <button id="btn-hud-mute" class="hud-mini-btn" title="Mute/Unmute Audio">🔊</button>
+                    </div>
+                </div>
+                <canvas id="canvas-minimap" width="160" height="135"></canvas>
+            </div>
+        </div>
+
+        <!-- Center: Mission Pill Box -->
+        <div id="hud-mission-box" class="glass-panel mission-pill hidden">
+            <div id="hud-mission-title" style="font-size:11px; font-weight:800; color:#38bdf8;">MISSION 1</div>
+            <div id="hud-mission-obj" style="font-size:10px; color:#e2e8f0;">Detect a host in the bedroom.</div>
+        </div>
+
+        <!-- Center: Contextual Action Prompt -->
+        <div id="hud-action-prompt" class="glass-panel hud-action-pill hidden">
+            Press [E] to Land on Host Capillary
+        </div>
+
+        <!-- Center Banner Alerts -->
+        <div id="hud-phase-banner" class="glass-panel phase-banner hidden">
+            <h2 id="banner-title" class="banner-h2">SIMULATION ACTIVE</h2>
+            <p id="banner-sub" class="banner-p">Search for hosts in the bedroom.</p>
+        </div>
+
+        <!-- Bottom Row: Telemetry Bar -->
+        <div style="display:flex; justify-content:flex-end;">
+            <div class="glass-panel telemetry-card hud-interactive">
+                <div style="font-size:10px; color:#94a3b8; font-weight:700; display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span>4-CHANNEL SENSORY TELEMETRY</span>
+                    <span style="color:#38bdf8;">[Q] EMOTION DRAWER</span>
+                </div>
+                <div class="telemetry-grid">
+                    <div class="tele-item"><span style="color:#00e5ff;">CO₂</span><strong id="tele-val-co2">0%</strong></div>
+                    <div class="tele-item"><span style="color:#ff3d00;">HEAT</span><strong id="tele-val-heat">0%</strong></div>
+                    <div class="tele-item"><span style="color:#ffb300;">ODOR</span><strong id="tele-val-odor">0%</strong></div>
+                    <div class="tele-item"><span style="color:#c084fc;">MOVE</span><strong id="tele-val-move">0%</strong></div>
+                    <div class="tele-item"><span style="color:#00e676;">ATTR</span><strong id="tele-val-attr">0%</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Precision Feeding Minigame Interface Overlay -->
+    <div id="feeding-overlay-panel" class="glass-panel feeding-card hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:12px; font-weight:800; color:#ef4444; letter-spacing:1px;">🩸 PRECISION FEEDING</div>
+            <div style="font-size:10px; color:#94a3b8;">[E / RMB] Detach</div>
+        </div>
+
+        <!-- Interactive Capillary Canvas -->
+        <canvas id="feed-reticle-canvas" width="220" height="145" style="border-radius:6px; border:1px solid rgba(255,255,255,0.1); margin:6px 0;"></canvas>
+
+        <div class="feed-metrics-grid">
+            <div>ACCURACY: <strong id="feed-val-accuracy" style="color:#00e5ff;">85%</strong></div>
+            <div>STABILITY: <strong id="feed-val-stability" style="color:#00e676;">75%</strong></div>
+        </div>
+
+        <div class="feed-bar-group">
+            <div class="feed-lbl"><span>BLOOD INTAKE</span><span id="feed-bar-pct">0%</span></div>
+            <div class="vital-bar-bg" style="margin:0;"><div id="feed-bar-fill" class="vital-fill fill-energy" style="width:0%;"></div></div>
+        </div>
+        <div class="feed-bar-group">
+            <div class="feed-lbl"><span>DETECTION RISK</span><span id="feed-risk-pct">0%</span></div>
+            <div class="vital-bar-bg" style="margin:0;"><div id="feed-risk-fill" class="vital-fill fill-stress" style="width:0%;"></div></div>
+        </div>
+        <div id="feed-warning-text" class="feed-warning-toast hidden">⚠ HOST SHIFTING!</div>
+        <div style="font-size:9px; color:#94a3b8; text-align:center; margin-top:4px;">Keep cyan reticle inside moving red capillary circle!</div>
+    </div>
+
+    <!-- Emotion Drawer (Q Key) - Displays all 9 simulated variables -->
+    <div id="drawer-emotions" class="hidden">
+        <div>
+            <div class="drawer-title">🧠 INTERNAL STATE ENGINE</div>
+            <div class="drawer-sub">9 Simulated physiological &amp; behavioral variables</div>
+
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#f59e0b;">HUNGER</span><span id="drw-val-hunger">70%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-hunger" class="drawer-bar-fill fill-hunger" style="width:70%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#38bdf8;">CURIOSITY</span><span id="drw-val-curiosity">40%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-curiosity" class="drawer-bar-fill fill-energy" style="width:40%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#c084fc;">FEAR</span><span id="drw-val-fear">10%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-fear" class="drawer-bar-fill fill-fear" style="width:10%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#f87171;">STRESS</span><span id="drw-val-stress">15%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-stress" class="drawer-bar-fill fill-stress" style="width:15%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#ec4899;">URGENCY</span><span id="drw-val-urgency">50%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-urgency" class="drawer-bar-fill" style="background:#ec4899; width:50%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#fbbf24;">ALERTNESS</span><span id="drw-val-alertness">20%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-alertness" class="drawer-bar-fill" style="background:#fbbf24; width:20%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#a855f7;">RELIEF</span><span id="drw-val-relief">0%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-relief" class="drawer-bar-fill" style="background:#a855f7; width:0%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#00e676;">CALMNESS</span><span id="drw-val-calmness">65%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-calmness" class="drawer-bar-fill" style="background:#00e676; width:65%;"></div></div>
+            </div>
+            <div class="drawer-stat-row">
+                <div class="drawer-stat-label"><span style="color:#00e5ff;">ENERGY</span><span id="drw-val-energy">100%</span></div>
+                <div class="drawer-bar-bg"><div id="drw-bar-energy" class="drawer-bar-fill fill-energy" style="width:100%;"></div></div>
+            </div>
+
+            <div class="drawer-behavior-box">
+                <div style="font-size:10px; color:#64748b; letter-spacing:1px; text-transform:uppercase;">CURRENT BEHAVIOR</div>
+                <div id="drw-behavior-title" class="drw-b-title">SEARCHING</div>
+                <div id="drw-behavior-desc" class="drw-b-desc">Scanning ambient air currents for trace thermal and chemical plumes.</div>
+            </div>
+        </div>
+
+        <div class="drawer-disclaimer-box">
+            <strong>Scientific Disclaimer:</strong><br>
+            “The emotional states shown in this simulation (Hunger, Curiosity, Fear, Stress, Urgency, Alertness, Relief, Calmness) are fictional interpretations designed to help players understand mosquito behavior. They do not represent proven human-like emotions or conscious experiences in mosquitoes.”
+        </div>
+    </div>
+
+    <!-- Floating Sandbox Controls Panel -->
+    <div id="modal-sandbox-ctrl" class="hidden">
+        <div style="font-size:11px; font-weight:800; color:#38bdf8; margin-bottom:4px;">🧪 SANDBOX EXPERIMENT LAB</div>
+        <div class="sandbox-row">
+            <button id="btn-sb-human" class="hud-mini-btn">+ Human</button>
+            <button id="btn-sb-dog" class="hud-mini-btn">+ Dog</button>
+            <button id="btn-sb-cat" class="hud-mini-btn">+ Cat</button>
+            <button id="btn-sb-bird" class="hud-mini-btn">+ Bird</button>
+        </div>
+        <div class="sandbox-row">
+            <button id="btn-sb-night" class="hud-mini-btn">🌙 Night</button>
+            <button id="btn-sb-morning" class="hud-mini-btn">🌅 Dawn</button>
+            <button id="btn-sb-day" class="hud-mini-btn">☀️ Day</button>
+            <button id="btn-sb-evening" class="hud-mini-btn">🌇 Dusk</button>
+        </div>
+        <div class="sandbox-row">
+            <button id="btn-sb-safezone" class="hud-mini-btn" style="color:#00e676;">+ Shelter</button>
+            <button id="btn-sb-fan-toggle" class="hud-mini-btn">FAN: ON</button>
+            <button id="btn-sb-clear" class="hud-mini-btn" style="color:#ff1744;">Clear</button>
+        </div>
+    </div>
+
+    <!-- Debug Telemetry Overlay (F3) -->
+    <div id="overlay-debug" class="hidden">
+        <div><strong>DEBUG TELEMETRY [F3]</strong></div>
+        <div>FPS: <span id="dbg-fps">60</span></div>
+        <div>POS: <span id="dbg-pos">0, 0, 0</span></div>
+        <div>VEL: <span id="dbg-vel">0 m/s</span></div>
+        <div>STATE: <span id="dbg-state">SEARCHING</span></div>
+        <div style="font-size:10px; color:#94a3b8; margin-top:4px;">[V] Cam Toggle | [N] Night Boost | [T] Perception</div>
+    </div>
+
+    <!-- Main Menu Modal -->
+    <div id="modal-main-menu" class="modal-backdrop">
+        <div class="modal-dialog menu-center-box">
+            <div style="font-size:48px; margin-bottom:4px;">🦟</div>
+            <h1 class="menu-h1">THROUGH THE EYES OF A MOSQUITO</h1>
+            <p class="menu-tagline">“The world is enormous when you're tiny.”</p>
+
+            <div class="menu-btn-stack">
+                <button id="btn-start-story" class="btn-action btn-primary-action">STORY MODE (10 MISSIONS)</button>
+                <button id="btn-start-survival" class="btn-action">SURVIVAL CHALLENGE</button>
+                <button id="btn-start-free" class="btn-action">FREE SIMULATION</button>
+                <button id="btn-start-sandbox" class="btn-action">SANDBOX EXPERIMENT</button>
+                <button id="btn-menu-tutorial" class="btn-action">FLIGHT TUTORIAL</button>
+                <button id="btn-menu-learn" class="btn-action">LEARN (SCIENCE &amp; SENSES)</button>
+                <button id="btn-menu-leaderboard" class="btn-action">BEST FLIGHT RECORDS</button>
+                <button id="btn-menu-settings" class="btn-action">SETTINGS</button>
+            </div>
+
+            <!-- Controls Cheatsheet Grid -->
+            <div style="background:rgba(15,23,42,0.65); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 14px; font-size:11px; color:#94a3b8; display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; text-align:left; margin-top:12px;">
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">WASD / Arrows</kbd> Fly &amp; Steer</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">Space / R</kbd> Climb</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">C / Ctrl</kbd> Dive</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">Shift</kbd> Turbo Boost</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">N</kbd> Night Vision Boost</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">T / Tab</kbd> Perception Mode</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">E</kbd> Land / Feed / Rest / Detach</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">Q</kbd> Emotion Drawer</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">V</kbd> 1st/3rd Person Cam</div>
+                <div><kbd style="background:#1e293b; padding:2px 6px; border-radius:4px; color:#fff;">P / Esc</kbd> Pause</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="modal-tutorial" class="modal-backdrop hidden">
+        <div class="modal-dialog">
+            <div class="modal-hdr">
+                <h2 class="modal-h2">HOW TO FLY &amp; SURVIVE</h2>
+                <button class="btn-close-modal" data-target="modal-tutorial">&times;</button>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">1. 3D Flight &amp; Wall Sliding</div>
+                <div class="learn-p">Fly smoothly using <strong>[WASD]</strong> or <strong>Arrow Keys</strong>. Climb with <strong>[Space / R]</strong> and dive with <strong>[C / Ctrl]</strong>. Independent per-axis wall sliding ensures you glide seamlessly along walls, furniture, and ceilings without snagging!</div>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">2. Night Vision &amp; Perception Mode [N / T]</div>
+                <div class="learn-p">Press <strong>[N]</strong> to toggle Night Vision Boost, enhancing nocturnal compound-eye illumination and cutting through scene fog. Press <strong>[T / Tab]</strong> to activate <strong>Mosquito Perception Mode</strong>: the bedroom darkens to thermal wireframe while CO₂, Heat, Odor, and Movement glow through walls with a 3D guidance spline leading to the best target!</div>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">3. Precision Landing &amp; Feeding [E]</div>
+                <div class="learn-p">Hover close to exposed capillary zones (&lt;1.5m, speed &lt;2.5 m/s) and press <strong>[E]</strong>. Steer your proboscis reticle to keep it aligned with the moving red capillary target. If the host twitches, detach immediately with <strong>[E / RMB]</strong> before the swat strikes!</div>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">4. Ceiling Fan Hazards &amp; Sanctuary Resting</div>
+                <div class="learn-p">Avoid the downward wind vortex under the rotating ceiling fan. After feeding, your heavy body load slows your flight. Flee to green safe zones (Monstera leaves, curtain folds, cupboard ceiling crevices) and press <strong>[E]</strong> to rest and digest!</div>
+            </div>
+            <button class="btn-action btn-close-modal" data-target="modal-tutorial" style="width:100%; margin-top:12px;">READY TO FLY</button>
+        </div>
+    </div>
+
+    <!-- Learn Modal -->
+    <div id="modal-learn" class="modal-backdrop hidden">
+        <div class="modal-dialog">
+            <div class="modal-hdr">
+                <h2 class="modal-h2">SCIENTIFIC INFORMATION &amp; SENSORY BIOLOGY</h2>
+                <button class="btn-close-modal" data-target="modal-learn">&times;</button>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">🔬 1. Chemoreception: Carbon Dioxide (CO₂)</div>
+                <div class="learn-p">Female mosquitoes detect ambient CO₂ changes as minute as 50 ppm using specialized gustatory receptors (Gr1, Gr2, Gr3) in their maxillary palps over dozens of meters, initiating zigzagging upwind flight.</div>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">🔥 2. Thermoreception: Thermal Infrared Heat</div>
+                <div class="learn-p">TRPA1 ion channels located on antennae tip sensilla resolve skin temperatures (34°C–37°C) at close range, guiding touchdown onto superficial capillary veins.</div>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">👃 3. Volatiles: Skin Odor Blends</div>
+                <div class="learn-p">Skin microbiota convert sweat into organic volatile blends: L-(+)-lactic acid, ammonia, and carboxylic acids, creating unique olfactory signatures for each host.</div>
+            </div>
+            <div class="learn-box">
+                <div class="learn-h3">⚡ 4. Mechanoreception: Johnston's Organ</div>
+                <div class="learn-p">Johnston's organ at the base of the antennae registers acoustic wing beat frequencies and air displacement shockwaves from approaching swat attacks in under 30 milliseconds.</div>
+            </div>
+            <div class="learn-disclaimer-highlight">
+                <strong>Important Scientific Disclaimer:</strong><br>
+                “The emotional states shown in this simulation (Hunger, Curiosity, Fear, Stress, Urgency, Alertness, Relief, Calmness) are fictional interpretations designed to help players understand mosquito behavior. They do not represent proven human-like emotions or conscious experiences in mosquitoes.”
+            </div>
+            <button class="btn-action btn-close-modal" data-target="modal-learn" style="width:100%; margin-top:16px;">RETURN TO MENU</button>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="modal-leaderboard" class="modal-backdrop hidden">
+        <div class="modal-dialog">
+            <div class="modal-hdr">
+                <h2 class="modal-h2">BEST FLIGHT RECORDS</h2>
+                <button class="btn-close-modal" data-target="modal-leaderboard">&times;</button>
+            </div>
+            <div id="lb-entries-list"></div>
+            <div style="display:flex; gap:12px; margin-top:16px;">
+                <button id="btn-clear-lb" class="btn-action" style="flex:1; border-color:#ff1744; color:#ff1744;">RESET LOGS</button>
+                <button class="btn-action btn-close-modal" data-target="modal-leaderboard" style="flex:2;">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="modal-settings" class="modal-backdrop hidden">
+        <div class="modal-dialog">
+            <div class="modal-hdr">
+                <h2 class="modal-h2">SIMULATION SETTINGS</h2>
+                <button class="btn-close-modal" data-target="modal-settings">&times;</button>
+            </div>
+            <div class="setting-row">
+                <label for="setting-difficulty">Difficulty</label>
+                <select id="setting-difficulty" class="setting-select">
+                    <option value="EASY">EASY (Calm hosts, slower swats)</option>
+                    <option value="NORMAL" selected>NORMAL (Standard biological response)</option>
+                    <option value="HARD">HARD (Hyper-alert hosts, aggressive cats)</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label for="setting-sound-vol">Sound Effects &amp; Drone</label>
+                <input id="setting-sound-vol" type="range" min="0" max="100" value="60" class="setting-slider">
+            </div>
+            <div class="setting-row">
+                <label for="setting-music-vol">Ambience Volume</label>
+                <input id="setting-music-vol" type="range" min="0" max="100" value="40" class="setting-slider">
+            </div>
+            <div class="setting-row">
+                <label for="setting-mouse-sens">Mouse Sensitivity</label>
+                <input id="setting-mouse-sens" type="range" min="20" max="250" value="100" class="setting-slider">
+            </div>
+            <div class="setting-row">
+                <label><input id="setting-mute-check" type="checkbox" style="margin-right:8px;">Mute Audio</label>
+            </div>
+            <button id="btn-save-settings" class="btn-action btn-primary-action" style="width:100%; margin-top:14px;">SAVE &amp; APPLY</button>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="modal-gameover" class="modal-backdrop hidden">
+        <div class="modal-dialog" style="max-width:520px;">
+            <div style="font-size:36px; text-align:center;">💀</div>
+            <h2 id="go-title" class="modal-h2" style="text-align:center; color:#ff1744;">FLIGHT RUN TERMINATED</h2>
+            <div id="go-reason-text" style="font-size:12px; color:#fca5a5; text-align:center; margin-bottom:14px;">Crushed by host swat attack!</div>
+
+            <div class="go-stats-grid">
+                <div class="go-stat-card"><span class="go-lbl">Survival Time</span><strong id="go-val-time" class="go-val">00:00</strong></div>
+                <div class="go-stat-card"><span class="go-lbl">Hosts Detected</span><strong id="go-val-detected" class="go-val">0</strong></div>
+                <div class="go-stat-card"><span class="go-lbl">Hosts Approached</span><strong id="go-val-approached" class="go-val">0</strong></div>
+                <div class="go-stat-card"><span class="go-lbl">Touchdowns</span><strong id="go-val-landings" class="go-val">0</strong></div>
+                <div class="go-stat-card"><span class="go-lbl">Successful Feeds</span><strong id="go-val-feeds" class="go-val">0</strong></div>
+                <div class="go-stat-card"><span class="go-lbl">Escapes to Shelter</span><strong id="go-val-escapes" class="go-val">0</strong></div>
+                <div class="go-stat-card"><span class="go-lbl">Species Fed</span><strong id="go-val-species" class="go-val">0</strong></div>
+                <div class="go-stat-card"><span class="go-lbl">Distance Flown</span><strong id="go-val-dist" class="go-val">0m</strong></div>
+            </div>
+
+            <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px; margin:14px 0; text-align:center;">
+                <div style="font-size:11px; color:#94a3b8; text-transform:uppercase;">TOTAL SCORE &amp; SURVIVAL RATING</div>
+                <div style="font-size:28px; font-weight:800; color:#38bdf8; margin:4px 0;"><span id="go-val-score">0</span> <span style="font-size:16px; color:#94a3b8;">PTS</span></div>
+                <div id="go-val-rating" style="font-size:16px; font-weight:700; color:#00e676;">A (★★★★☆)</div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button id="btn-go-retry" class="btn-action btn-primary-action" style="flex:1;">FLY AGAIN</button>
+                <button id="btn-go-menu" class="btn-action" style="flex:1;">MAIN MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Overlay -->
+    <div id="overlay-pause" class="modal-backdrop hidden">
+        <div class="modal-dialog menu-center-box" style="max-width:320px;">
+            <h2 class="modal-h2" style="margin-bottom:14px;">SIMULATION PAUSED</h2>
+            <div class="menu-btn-stack">
+                <button id="btn-resume-game" class="btn-action btn-primary-action">RESUME FLIGHT</button>
+                <button id="btn-quit-main-menu" class="btn-action">RETURN TO MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Notification Toast -->
+    <div id="ui-toast" class="ui-toast hidden">Notification</div>
+
+    <!-- Strict 16-File Modular Dependency Order -->
+    <script src="js/storage.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/emotions.js"></script>
+    <script src="js/mosquito.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/environment.js"></script>
+    <script src="js/hosts.js"></script>
+    <script src="js/hostAI.js"></script>
+    <script src="js/sensors.js"></script>
+    <script src="js/feeding.js"></script>
+    <script src="js/missions.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/sandbox.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
