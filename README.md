@@ -2,7 +2,7 @@
 
 
 
-## 🦟Through The Eyes Of a Mosquito👀
+# 🦟Through The Eyes Of a Mosquito👀
 
 
 Through the Eyes of a Mosquito is an asynchronous, multi-rate 3D biological flight simulation engineered with Three.js and vanilla ES modules. The system places the player in the microscopic, high-velocity perspective of a female mosquito navigating a multi-zone domestic environment.
