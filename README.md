@@ -23,7 +23,7 @@ Mosquitoes must calculate micro-scale aerodynamic drag, track shifting carbon di
 # The Solution:
 A 3D indie biological flight simulator that lets human players experience domestic survival from an insect's perspective, featuring multi-spectrum sensory shaders, realistic inertia, dynamic host swat AI, and a high-stakes feeding stabilization system.
 
-## Technical Details
+# Technical Details
 
 # Technologies/Components Used
 
