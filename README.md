@@ -61,24 +61,8 @@ First-person flight navigation through the domestic environment showing furnitur
 
 # Diagrams
 
-┌─────────────────────────────────────────────────────────┐
-│               CENTRAL ENGINE LOOP (rAF)                 │
-└────────────────────────────┬────────────────────────────┘
-                             │
-     ┌───────────────────────┼────────────────────────┐
-     ▼ (60 FPS)              ▼ (30 FPS)               ▼ (10-15 FPS)
-┌────────────────┐      ┌─────────────────┐      ┌──────────────────┐
-│ Flight Physics │      │  Host Local AI  │      │ Sensory Shaders  │
-│ Camera Spring  │      │  State Machines │      │ Minimap Blitting │
-│ AABB Collision │      │  Reaction Logic │      │ Zone Streaming   │
-└────────┬───────┘      └────────┬────────┘      └────────┬─────────┘
-         │                       │                        │
-         └───────────────────────┼────────────────────────┘
-                                 ▼
-                      ┌──────────────────────┐
-                      │ Three.js / WebGL     │
-                      │ Instanced Draw Calls │
-                      └──────────────────────┘
+<img width="847" height="687" alt="Screenshot 2026-09-12 071441" src="https://github.com/user-attachments/assets/faaa8088-d3e1-46c7-a623-77cf10f3bf85" />
+
 Decoupled multi-rate game loop isolating rendering, flight physics, local AI, and sensory calculation frequencies.
 
 ## Project Demo
