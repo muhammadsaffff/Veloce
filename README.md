@@ -61,7 +61,8 @@ First-person flight navigation through the domestic environment showing furnitur
 
 # Diagrams
 
-<img width="847" height="687" alt="Screenshot 2026-09-12 071441" src="https://github.com/user-attachments/assets/faaa8088-d3e1-46c7-a623-77cf10f3bf85" />
+<img width="2462" height="1728" alt="Gemini_Generated_Image_fn7wwdfn7wwdfn7w" src="https://github.com/user-attachments/assets/78ee04cf-19f5-4dfd-9992-4c62f0dec6b0" />
+
 
 Decoupled multi-rate game loop isolating rendering, flight physics, local AI, and sensory calculation frequencies.
 
